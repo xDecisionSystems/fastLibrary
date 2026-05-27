@@ -23,6 +23,16 @@ def main() -> None:
         default="http://localhost:8000",
         help="Base URL of the paper library API (default: http://localhost:8000).",
     )
+    parser.add_argument(
+        "--overwrite-missing-fields",
+        action="store_true",
+        help="If set, omitted fields overwrite existing values with model defaults.",
+    )
+    parser.add_argument(
+        "--overwrite-duplicate-doi",
+        action="store_true",
+        help="If set, duplicate DOI entries in this file keep the last record.",
+    )
     args = parser.parse_args()
 
     with open(args.file, "r", encoding="utf-8") as fh:
@@ -52,7 +62,13 @@ def main() -> None:
         print(f"Processed {len(records)} records: 0 upserted, 0 modified, {skipped} skipped (no DOI).")
         return
 
-    payload = json.dumps({"papers": valid}).encode("utf-8")
+    payload = json.dumps(
+        {
+            "papers": valid,
+            "overwrite_missing_fields": args.overwrite_missing_fields,
+            "overwrite_duplicate_doi": args.overwrite_duplicate_doi,
+        }
+    ).encode("utf-8")
     url = args.api_url.rstrip("/") + "/papers/bulk"
 
     req = urllib.request.Request(

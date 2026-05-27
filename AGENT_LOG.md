@@ -6,6 +6,39 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] codex-gpt-5 — fixed sparse-upsert safety and overwrite flags
+
+**Action:** Implemented the requested overwrite controls. Default upsert behavior now preserves existing fields when payload fields are omitted. Added explicit flags to overwrite missing fields and to resolve duplicate DOI rows in bulk payloads. Added DOI non-empty validation, improved bulk-write error reporting, enforced MongoDB localhost bind in deployment, and updated architecture/version docs.
+
+**Files changed:**
+- `services/models.py` — DOI validation + bulk overwrite flags + safe list defaults
+- `services/mongo.py` — sparse-vs-overwrite upsert logic, duplicate DOI handling, bulk write error handling
+- `api/routes/papers.py` — `overwrite_missing_fields` support on single upsert and bulk flag plumbing
+- `scripts/import_searcher.py` — CLI flags for overwrite behavior
+- `deploy/proxmox_deploy.sh` — explicit localhost bind enforcement and bind verification for mongod
+- `ARCHITECTURE.md` — updated endpoint contracts and overwrite behavior docs
+- `VERSION.md` — bumped to `paper-library-v0.1.1`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used request-level explicit flags (`overwrite_missing_fields`, `overwrite_duplicate_doi`) so existing clients keep safe defaults without breaking changes. For duplicate DOI overwrite mode, the last payload row is retained per DOI.
+
+**Open items:** Existing deployed LXCs should be refreshed or manually updated if they were provisioned before localhost bind enforcement in `deploy/proxmox_deploy.sh`.
+
+---
+
+## [2026-05-27] codex-gpt-5 — performed repository code review
+
+**Action:** Reviewed API, data layer, models, scripts, and deploy automation for behavioral regressions and policy alignment. Focused on idempotency, DOI handling, and MongoDB exposure guarantees.
+
+**Files changed:**
+- `AGENT_LOG.md` — prepended this review handoff entry
+
+**Decisions:** Did not modify application code because the request was review-only; reported findings with severity and concrete file/line references for follow-up fixes.
+
+**Open items:** Address review findings: sparse upserts can wipe existing fields, DOI is not constrained as non-empty at API boundary, duplicate DOI rows in one bulk request can trigger bulk write failures, and deploy script does not explicitly enforce MongoDB localhost binding.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — added agent handoff log protocol
 
 **Action:** Added `AGENT_LOG.md` handoff protocol to both `CLAUDE.md` (§6) and `AGENTS.md` (§10) so that every agent — Claude, Codex, or other — reads this file before acting and prepends an entry after acting. Created this file as the initial log.

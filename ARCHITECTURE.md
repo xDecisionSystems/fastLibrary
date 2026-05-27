@@ -29,11 +29,16 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 ### Upsert path (POST /papers or POST /papers/bulk)
 
-1. FastAPI deserializes and validates request body via `Paper` / `BulkUpsertRequest`.
-2. Route calls `mongo.upsert_paper()` or `mongo.bulk_upsert()`.
+1. FastAPI deserializes and validates request body via `Paper` / `BulkUpsertRequest`; DOI is normalized and must be non-empty.
+2. Route calls `mongo.upsert_paper()` or `mongo.bulk_upsert()`, passing overwrite flags.
 3. MongoDB `update_one` / `bulk_write` with `upsert=True`, matching on `doi`.
-4. `$set` updates all fields + `updated_at`; `$setOnInsert` sets `created_at` only on first insert.
-5. Response returns `{"doi": ..., "action": "upserted"}` or bulk summary.
+4. Default behavior (`overwrite_missing_fields=false`) is sparse update: only caller-provided fields are updated + `updated_at`.
+5. Overwrite behavior (`overwrite_missing_fields=true`) updates full model fields + `updated_at`; missing fields are replaced with defaults.
+6. `$setOnInsert` sets `created_at` only on first insert.
+7. Bulk duplicate DOI behavior:
+   - `overwrite_duplicate_doi=false` rejects duplicate DOI rows in one payload (HTTP 400).
+   - `overwrite_duplicate_doi=true` keeps only the last row per DOI in that payload.
+8. Response returns `{"doi": ..., "action": "upserted"}` or bulk summary.
 
 ### Query/filter path (GET /papers)
 
@@ -49,8 +54,8 @@ RAG System        ──GET  /papers?ingested=false──►  │
 | Method | Path                  | Body / Params              | Response                                      |
 |--------|-----------------------|----------------------------|-----------------------------------------------|
 | GET    | /health               | —                          | `{"status": "ok", "version": "..."}`          |
-| POST   | /papers               | `Paper`                    | `{"doi": "...", "action": "upserted"}`        |
-| POST   | /papers/bulk          | `BulkUpsertRequest`        | `{"upserted": N, "modified": N, "errors": []}` |
+| POST   | /papers               | `Paper` + `overwrite_missing_fields` (query, optional) | `{"doi": "...", "action": "upserted"}` |
+| POST   | /papers/bulk          | `BulkUpsertRequest` (`papers`, `overwrite_missing_fields`, `overwrite_duplicate_doi`) | `{"upserted": N, "modified": N, "errors": []}` |
 | GET    | /papers               | query params (see below)   | `{"total": N, "skip": N, "limit": N, "results": [...]}` |
 | GET    | /papers/{doi:path}    | —                          | Full paper document or 404                    |
 | PATCH  | /papers/{doi:path}    | `PaperUpdate`              | Updated paper document or 404                 |
@@ -71,6 +76,12 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 **Note on DOI path encoding:** DOIs containing `/` must be URL-encoded as `%2F` by callers. The `{doi:path}` route captures the full decoded DOI including slashes.
 
+**POST /papers overwrite flag:**
+
+| Param                    | Type | Default | Description |
+|--------------------------|------|---------|-------------|
+| `overwrite_missing_fields` | bool | `false` | If `true`, omitted fields overwrite stored values with model defaults. If `false`, omitted fields preserve existing values. |
+
 ## 5. Data Contract
 
 MongoDB document stored in the `papers` collection:
@@ -78,10 +89,10 @@ MongoDB document stored in the `papers` collection:
 | Field              | Type            | Set by              | Notes                              |
 |--------------------|-----------------|---------------------|------------------------------------|
 | `doi`              | string          | `$set`              | Required; unique index key         |
-| `title`            | string          | `$set`              | Default: `""`                      |
-| `authors`          | array[string]   | `$set`              | Default: `[]`                      |
+| `title`            | string          | `$set`              | Default on overwrite: `""`         |
+| `authors`          | array[string]   | `$set`              | Default on overwrite: `[]`         |
 | `publication_year` | int \| null     | `$set`              |                                    |
-| `source`           | string          | `$set`              | Provider name (openalex, ieee, …)  |
+| `source`           | string          | `$set`              | Provider name (openalex, ieee, ...) |
 | `url`              | string          | `$set`              | Landing page URL                   |
 | `pdf_link`         | string          | `$set`              | Direct PDF URL if known            |
 | `pdf_path`         | string          | `$set`              | Local filesystem path if downloaded|
@@ -91,6 +102,8 @@ MongoDB document stored in the `papers` collection:
 | `ingested`         | bool            | `$set`              | Whether RAG has ingested this paper|
 | `updated_at`       | datetime (UTC)  | `$set`              | Updated on every upsert            |
 | `created_at`       | datetime (UTC)  | `$setOnInsert`      | Set only on first insert           |
+
+By default, only fields present in the request are written (`overwrite_missing_fields=false`). Overwrite mode writes all model fields.
 
 ## 6. Index Design
 
@@ -135,7 +148,9 @@ Proxmox Host
 
 Papers are fed into the library in two ways:
 
-1. **CLI import**: `python scripts/import_searcher.py results.json` reads a searcher JSON envelope (`{"results": [...]}`) and POSTs to `POST /papers/bulk`. Records without a DOI are skipped with a warning.
+1. **CLI import**: `python scripts/import_searcher.py results.json` reads a searcher JSON envelope (`{"results": [...]}`) and POSTs to `POST /papers/bulk`. Records without a DOI are skipped with a warning. Optional flags:
+   - `--overwrite-missing-fields`
+   - `--overwrite-duplicate-doi`
 2. **Direct API call**: Searcher service POSTs to `POST /papers` (single) or `POST /papers/bulk` (batch).
 
 Searcher field names map directly to `Paper` fields — no transformation needed.

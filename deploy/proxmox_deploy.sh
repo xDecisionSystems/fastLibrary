@@ -376,6 +376,18 @@ lxc_exec "$VMID" "
     > /etc/apt/sources.list.d/mongodb-org-7.0.list
   apt-get update -qq
   apt-get install -y -qq mongodb-org
+  if grep -q '^net:' /etc/mongod.conf; then
+    if grep -qE '^[[:space:]]*bindIp:' /etc/mongod.conf; then
+      sed -i -E 's/^[[:space:]]*bindIp:.*/  bindIp: 127.0.0.1/' /etc/mongod.conf
+    else
+      sed -i '/^net:/a\  bindIp: 127.0.0.1' /etc/mongod.conf
+    fi
+  else
+    cat >> /etc/mongod.conf <<'EOF'
+net:
+  bindIp: 127.0.0.1
+EOF
+  fi
   systemctl enable mongod
   systemctl start mongod
 "
@@ -389,6 +401,13 @@ lxc_exec "$VMID" "
   echo 'MongoDB did not start in time'; exit 1
 "
 log "MongoDB PASSED."
+
+log "Verifying MongoDB bind address is localhost-only ..."
+lxc_exec "$VMID" "
+  ss -ltn | awk '\$4 ~ /:27017$/ {print \$4}' | grep -Eq '^(127\\.0\\.0\\.1:27017|\\[::1\\]:27017)$' \
+    || { echo 'mongod is not bound to localhost only'; exit 1; }
+"
+log "MongoDB bind address PASSED."
 
 # ─── Create service user ──────────────────────────────────────────────────────
 log "Creating paperuser ..."

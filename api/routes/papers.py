@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from typing import Optional
 
@@ -11,8 +10,14 @@ router = APIRouter()
 
 
 @router.post("")
-async def create_paper(paper: Paper) -> dict:
-    doi = await mongo.upsert_paper(paper)
+async def create_paper(
+    paper: Paper,
+    overwrite_missing_fields: bool = Query(
+        False,
+        description="If true, omitted fields are overwritten with defaults.",
+    ),
+) -> dict:
+    doi = await mongo.upsert_paper(paper, overwrite_missing_fields=overwrite_missing_fields)
     return {"doi": doi, "action": "upserted"}
 
 
@@ -20,7 +25,14 @@ async def create_paper(paper: Paper) -> dict:
 async def bulk_upsert(body: BulkUpsertRequest) -> dict:
     if len(body.papers) > 1000:
         raise HTTPException(status_code=400, detail="Maximum 1000 papers per bulk call.")
-    return await mongo.bulk_upsert(body.papers)
+    try:
+        return await mongo.bulk_upsert(
+            body.papers,
+            overwrite_missing_fields=body.overwrite_missing_fields,
+            overwrite_duplicate_doi=body.overwrite_duplicate_doi,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("")

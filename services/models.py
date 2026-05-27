@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Paper(BaseModel):
-    doi: str
+    doi: str = Field(min_length=1)
     title: str = ""
-    authors: list[str] = []
+    authors: list[str] = Field(default_factory=list)
     publication_year: Optional[int] = None
     source: str = ""
     url: str = ""
@@ -15,10 +15,18 @@ class Paper(BaseModel):
     pdf_path: str = ""
     snippet: str = ""
     is_abstract: bool = False
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
     ingested: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @field_validator("doi")
+    @classmethod
+    def validate_doi(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("doi must be a non-empty string.")
+        return normalized
 
 
 class PaperUpdate(BaseModel):
@@ -37,3 +45,5 @@ class PaperUpdate(BaseModel):
 
 class BulkUpsertRequest(BaseModel):
     papers: list[Paper]
+    overwrite_missing_fields: bool = False
+    overwrite_duplicate_doi: bool = False
