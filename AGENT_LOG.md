@@ -6,6 +6,35 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — venue management feature (JSON store, API, browser UI)
+
+**Action:** Implemented the full venue management feature: JSON file store at `venues/<slug>.json`, five FastAPI CRUD + prefill endpoints under `/venues`, Azure OpenAI LLM prefill for venue metadata, and four browser-served HTML pages (`/addvenue`, `/venues/ui`, `/conf`, `/journals`). Added `DownloadSource` and `VenueRecord` Pydantic models. Updated settings to include Azure OpenAI credentials and `VENUES_DIR`. Added `openai` and `aiofiles` to requirements.
+
+**Files changed:**
+- `venues/.gitkeep` — created; venues/ directory tracked in repo
+- `.gitignore` — added `venues/*.json` so venue data is not committed
+- `config/settings.py` — added `venues_dir`, `azure_openai_endpoint`, `azure_openai_api_key`, `azure_openai_api_version`, `chat_deployment_name`
+- `.env.example` — documented `VENUES_DIR` and all four Azure OpenAI vars
+- `services/models.py` — added `DownloadSource` and `VenueRecord` models
+- `services/venues.py` — created; `prefill_venue(name)` using Azure OpenAI chat, non-blocking on credential absence or LLM error
+- `api/routes/venues.py` — created; `GET /venues/prefill`, `POST /venues`, `GET /venues`, `GET /venues/{slug}`, `DELETE /venues/{slug}`
+- `api/main.py` — added venues router, StaticFiles mount, four UI page routes
+- `api/static/addvenue.html` — created; AI prefill, form, download-sources table, chip list
+- `api/static/venues.html` — created; all-venues table with filter
+- `api/static/conf.html` — created; conferences-only filtered table
+- `api/static/journals.html` — created; journals-only filtered table
+- `requirements.txt` — added `openai`, `aiofiles`
+- `AGENTS.md` — updated §2 repo scope tree
+- `CLAUDE.md` — updated syntax check command to include new modules
+- `VERSION.md` — bumped to `paper-library-v0.1.6`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Venue data is stored as individual `<slug>.json` files (not MongoDB) so the store is portable, git-committable selectively, and requires no schema migration. Slug is derived from `short_name` (lowercase, non-word → underscore). LLM prefill is optional — if Azure credentials are absent, the endpoint returns `{"error": "prefill unavailable"}` without crashing. The `/venues/ui` path (not `/venues`) avoids a routing conflict with the `GET /venues` API endpoint registered on the same router prefix.
+
+**Open items:** `ARCHITECTURE.md` should be updated to document the new venue endpoints and data flow in the next docs pass.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — human-readable PDF filenames via RFR title slugger
 
 **Action:** Added `POST /simplify-title` endpoint to RFR (`rfr/rag-system`) that uses Azure OpenAI to produce a 4–6 word snake_case slug from a full paper title. Added `venue` and `title_slug` fields to the `Paper` model. Replaced the SHA-256 filename scheme with a human-readable `{venue}_{year}__{title_slug}__{first_author_lastname}.pdf` builder that falls back gracefully when fields are missing. Updated ARCHITECTURE.md in both repos.
@@ -148,45 +177,6 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 **Decisions:** Newest-first ordering keeps the most relevant context at the top of the file without requiring a full read. Archive threshold of 200 lines / 10 entries keeps the active file small enough to fit in any agent's context window cheaply.
 
-**Open items:** None from this change. See initial scaffold entry below for broader open items.
+**Open items:** None from this change. See `history/2026-05.md` for the initial scaffold entry.
 
 ---
-
-## [2026-05-27] claude-sonnet-4-6 — initial project scaffold
-
-**Action:** Built the complete paper-library microservice from scratch per Implementation Instructions. Covers FastAPI + Motor/MongoDB backend, all CRUD and bulk-upsert endpoints, deploy scripts for Proxmox LXC, and governance files.
-
-**Files changed:**
-- `api/__init__.py` — created (package init)
-- `api/main.py` — created (FastAPI app, lifespan, router registration, root redirect)
-- `api/routes/__init__.py` — created (package init)
-- `api/routes/health.py` — created (GET /health, reads version from VERSION.md)
-- `api/routes/papers.py` — created (POST /papers, POST /papers/bulk, GET /papers, GET /papers/{doi:path}, PATCH /papers/{doi:path}, DELETE /papers/{doi:path})
-- `config/__init__.py` — created (package init)
-- `config/settings.py` — created (frozen dataclass, fail-fast on missing MONGO_URI/MONGO_DB)
-- `services/__init__.py` — created (package init)
-- `services/models.py` — created (Paper, PaperUpdate, BulkUpsertRequest Pydantic models)
-- `services/mongo.py` — created (Motor client, index creation, upsert_paper, bulk_upsert, list_papers, count_papers, get_paper, delete_paper)
-- `scripts/import_searcher.py` — created (CLI bulk-importer from searcher JSON envelope)
-- `deploy/proxmox_deploy.sh` — created (LXC creation, MongoDB 7.0 apt install, systemd service)
-- `deploy/restart.sh` — created (mongod → wait → paper-library → wait)
-- `deploy/update.sh` — created (git pull → pip install → daemon-reload → restart → version diff)
-- `requirements.txt` — created
-- `.env.example` — created
-- `VERSION.md` — created (paper-library-v0.1.0)
-- `AGENTS.md` — created
-- `CLAUDE.md` — created
-- `ARCHITECTURE.md` — created
-
-**Decisions:**
-- Used `{doi:path}` route parameter to capture DOIs containing `/` (e.g. `10.1109/tro.2023.123456`) without requiring callers to double-encode.
-- `created_at` uses `$setOnInsert` so re-upserts never overwrite the original insert timestamp.
-- Text index covers `title` and `tags`; `snippet` excluded until abstract content is reliably populated (noted as planned enhancement in ARCHITECTURE.md).
-- `import_searcher.py` uses only stdlib (`urllib`, `json`, `argparse`) to avoid adding a `requests` dependency for a CLI-only script.
-- Deploy scripts modeled after the `rfr` rag-system repo patterns for consistency across the stack.
-
-**Open items:**
-- No authentication on v1 — this is an internal service but should be revisited before any external exposure.
-- Bulk upsert error reporting is basic (exception message only); could be enriched with per-DOI status codes.
-- PDF download triggering from `pdf_link` is a planned enhancement (documented in ARCHITECTURE.md §10).
-- Webhook/event on new paper insert is a planned enhancement (documented in ARCHITECTURE.md §10).

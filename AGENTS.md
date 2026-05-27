@@ -19,13 +19,20 @@ Prioritize correctness, idempotent writes, and stable API contracts.
 ```
 paper-library/
 ├── api/
-│   ├── main.py               # FastAPI app, lifespan, route registration
-│   └── routes/
-│       ├── papers.py         # CRUD + search/filter endpoints
-│       └── health.py         # GET /health
+│   ├── main.py               # FastAPI app, lifespan, route registration, UI page routes
+│   ├── routes/
+│   │   ├── papers.py         # CRUD + search/filter + PDF upload endpoints
+│   │   ├── venues.py         # Venue CRUD + LLM prefill endpoints
+│   │   └── health.py         # GET /health
+│   └── static/               # Server-rendered browser pages
+│       ├── addvenue.html     # Add/edit venue with AI prefill
+│       ├── venues.html       # All venues table
+│       ├── conf.html         # Conferences filtered table
+│       └── journals.html     # Journals filtered table
 ├── services/
 │   ├── mongo.py              # Motor client, db/collection accessors
-│   └── models.py             # Pydantic models for Paper records
+│   ├── models.py             # Pydantic models for Paper, VenueRecord, etc.
+│   └── venues.py             # Azure OpenAI venue prefill helper
 ├── config/
 │   └── settings.py           # Frozen dataclass from env vars
 ├── scripts/
@@ -34,6 +41,8 @@ paper-library/
 │   ├── proxmox_deploy.sh     # Creates LXC, installs MongoDB + API service
 │   ├── restart.sh            # Restarts services in dependency order
 │   └── update.sh             # git pull + pip install + restart
+├── venues/                   # JSON venue store (<slug>.json per venue)
+│   └── .gitkeep
 ├── .env.example
 ├── requirements.txt
 ├── VERSION.md

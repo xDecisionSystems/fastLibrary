@@ -15,3 +15,6 @@ env/
 # PDFs and data
 pdfs/
 *.pdf
+
+# Venue JSON store (local data, not committed)
+venues/*.json

@@ -56,3 +56,20 @@ class BulkUpsertRequest(BaseModel):
     papers: list[Paper]
     overwrite_missing_fields: bool = False
     overwrite_duplicate_doi: bool = False
+
+
+class DownloadSource(BaseModel):
+    name: str = ""
+    url: str = ""
+    notes: str = ""
+
+
+class VenueRecord(BaseModel):
+    short_name: str = Field(min_length=1)
+    long_name: str = ""
+    type: str = ""
+    publisher: str = ""
+    access_url: str = ""
+    open_access: bool = False
+    notes: str = ""
+    download_sources: list[DownloadSource] = Field(default_factory=list)

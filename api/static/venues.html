@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Venues — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.4rem;margin-bottom:6px}
+  .subtitle{font-size:.85rem;color:#666;margin-bottom:20px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;max-width:900px}
+  .toolbar input{flex:1;padding:7px 12px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .btn{padding:7px 14px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-danger{background:#cc2222;color:#fff}
+  .btn-danger:hover{background:#a01a1a}
+  .card{background:#fff;border-radius:8px;padding:0;max-width:900px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:.875rem}
+  th{text-align:left;padding:10px 14px;background:#f0f0f0;border-bottom:1px solid #ddd;white-space:nowrap}
+  td{padding:9px 14px;border-bottom:1px solid #eee;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#fafafa}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75rem;background:#e8f0fe;color:#0052a3}
+  .badge.journal{background:#fce8e8;color:#a01a1a}
+  .oa{color:green;font-size:.8rem}
+  .actions{display:flex;gap:6px}
+  #empty{display:none;padding:32px;text-align:center;color:#888;font-size:.9rem}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  nav a.active{font-weight:600;color:#333}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues/ui" class="active">All</a>
+  <a href="/conf">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/addvenue">+ Add Venue</a>
+</nav>
+<h1>Venues</h1>
+<p class="subtitle">All conferences and journals in the library.</p>
+
+<div class="toolbar">
+  <input id="search" type="text" placeholder="Filter by name…" oninput="renderTable()">
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Short Name</th>
+        <th>Long Name</th>
+        <th>Type</th>
+        <th>Publisher</th>
+        <th>Open Access</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="empty">No venues found.</div>
+</div>
+
+<script>
+let venues=[];
+
+async function load(){
+  try{
+    const r=await fetch('/venues');
+    venues=await r.json();
+    renderTable();
+  }catch(e){document.getElementById('empty').textContent='Failed to load venues.';document.getElementById('empty').style.display='';}
+}
+
+function renderTable(typeFilter=''){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const rows=venues.filter(v=>{
+    if(typeFilter&&v.type!==typeFilter)return false;
+    if(q&&!(v.short_name+v.long_name).toLowerCase().includes(q))return false;
+    return true;
+  });
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  document.getElementById('empty').style.display=rows.length?'none':'';
+  rows.forEach(v=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><strong>${esc(v.short_name)}</strong></td>
+      <td>${esc(v.long_name)}</td>
+      <td><span class="badge ${v.type==='journal'?'journal':''}">${esc(v.type||'—')}</span></td>
+      <td>${esc(v.publisher||'—')}</td>
+      <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
+      <td class="actions">
+        <a href="/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:.78rem" onclick="doDelete('${v.slug}')">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+
+async function doDelete(slug){
+  if(!confirm('Delete venue "'+slug+'"?'))return;
+  await fetch('/venues/'+slug,{method:'DELETE'});
+  await load();
+}
+
+load();
+</script>
+</body>
+</html>

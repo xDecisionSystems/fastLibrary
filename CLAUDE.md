@@ -38,9 +38,9 @@ A self-hosted paper metadata and PDF reference store deployed in a single Proxmo
 - Import searcher results: `python scripts/import_searcher.py results.json`
 - Syntax check all modules:
   ```
-  python -m py_compile api/main.py api/routes/papers.py api/routes/health.py \
-    services/mongo.py services/models.py config/settings.py \
-    scripts/import_searcher.py
+  python3 -m py_compile api/main.py api/routes/papers.py api/routes/health.py \
+    api/routes/venues.py services/mongo.py services/models.py services/venues.py \
+    config/settings.py scripts/import_searcher.py
   ```
 
 ## 3. Version Update Rule
