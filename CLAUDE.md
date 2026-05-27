@@ -63,20 +63,30 @@ A self-hosted paper metadata and PDF reference store deployed in a single Proxmo
 - MongoDB must only listen on localhost (port 27017) — do not expose externally without authentication.
 - DOI uniqueness is enforced at the database level via a unique index.
 
-## 6. Git Commit Message (Mandatory)
+## 6. Git Commit Message (On Request Only)
 
-After completing any task that changes code or documentation, output a suggested git commit message using this format:
+Only output a git commit message when the user explicitly asks for one (e.g. "give me a commit message", "what's the commit?", "git message").
+
+When requested, cover **all changes since the last commit** — not just the most recent task. Check `git diff` or `git status` to identify everything that has changed.
+
+Format:
 
 ```
-<short imperative summary under 72 chars>
+<type>(<scope>): <short imperative summary under 72 chars>
 
-- <bullet: what changed and why>
-- <bullet: what changed and why>
-...
+<body — what changed and why, wrapped at 72 chars. List each
+logical change as a bullet if multiple changes are bundled.>
+
+Files: <comma-separated list of all changed files>
+Version: <current VERSION_NAME value>
 ```
 
-The summary line must be imperative mood ("add", "fix", "update", not "added" or "fixes").
-Include only files that actually changed. Do not suggest committing `.env` or any file matching `.gitignore`.
+**Type** must be one of: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
+Use `feat` if any new capability was added, even alongside fixes or docs.
+**Scope** is the broadest top-level area affected, or `root` for repo-level changes.
+
+Output the commit message in a fenced code block so the user can copy it directly.
+Do not include `.env` or any file matching `.gitignore`.
 
 ## 7. Agent Handoff Log (Mandatory)
 
