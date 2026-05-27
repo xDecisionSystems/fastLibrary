@@ -13,9 +13,11 @@ class Paper(BaseModel):
     url: str = ""
     pdf_link: str = ""
     pdf_path: str = ""
+    venue: str = ""
     snippet: str = ""
     is_abstract: bool = False
     tags: list[str] = Field(default_factory=list)
+    title_slug: str = ""
     ingested: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -37,9 +39,11 @@ class PaperUpdate(BaseModel):
     url: Optional[str] = None
     pdf_link: Optional[str] = None
     pdf_path: Optional[str] = None
+    venue: Optional[str] = None
     snippet: Optional[str] = None
     is_abstract: Optional[bool] = None
     tags: Optional[list[str]] = None
+    title_slug: Optional[str] = None
     ingested: Optional[bool] = None
 
 

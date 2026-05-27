@@ -6,6 +6,28 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — human-readable PDF filenames via RFR title slugger
+
+**Action:** Added `POST /simplify-title` endpoint to RFR (`rfr/rag-system`) that uses Azure OpenAI to produce a 4–6 word snake_case slug from a full paper title. Added `venue` and `title_slug` fields to the `Paper` model. Replaced the SHA-256 filename scheme with a human-readable `{venue}_{year}__{title_slug}__{first_author_lastname}.pdf` builder that falls back gracefully when fields are missing. Updated ARCHITECTURE.md in both repos.
+
+**Files changed (fastLibrary):**
+- `services/models.py` — added `venue: str` and `title_slug: str` to `Paper` and `PaperUpdate`
+- `api/routes/papers.py` — replaced `_doi_to_filename` with `_build_filename(doi, record)`; added `_slugify` helper; removed `hashlib`/`uuid4` filename dependency
+- `ARCHITECTURE.md` — updated PDF upload flow, filename example, data contract table
+- `VERSION.md` — bumped to `paper-library-v0.1.5`
+
+**Files changed (rfr/rag-system):**
+- `services/llm.py` — added `simplify_title()` function using existing Azure OpenAI client
+- `api/main.py` — added `SimplifyTitleRequest` model and `POST /simplify-title` endpoint
+- `ARCHITECTURE.md` — added `/simplify-title` to endpoint map with workflow description
+- `VERSION.md` — bumped to `rag-system-v0.1.1`
+
+**Decisions:** `title_slug` is caller-supplied (via RFR) rather than computed at upload time so paper-library has no dependency on RFR at runtime — the two services remain independently deployable. Fallback slug (first 5 words of title, lowercased) means the upload works even without RFR in the loop. Venue is a free-text field (e.g. `ICRA`, `TRO`) — not an enum — so callers control the short name.
+
+**Open items:** The full PDF upload workflow is now: (1) POST metadata with `venue`/`authors`/`publication_year`, (2) call RFR `/simplify-title`, (3) PATCH `title_slug` onto the record, (4) POST PDF. This could be streamlined into a single import-and-slug step in `import_searcher.py`.
+
+---
+
 ## [2026-05-27] codex-gpt-5 — verified issues 2 and 3 are resolved
 
 **Action:** Validated that issue 2 (PDF upload memory pressure) and issue 3 (architecture validation model mismatch) are already fixed in the current branch. Confirmed chunked upload with in-stream size enforcement in `POST /papers/{doi:path}/pdf` and confirmed `ARCHITECTURE.md` now documents `UpsertRequest`/`BulkUpsertRequest` validation models.

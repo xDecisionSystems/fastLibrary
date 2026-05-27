@@ -1,4 +1,4 @@
-import hashlib
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -14,13 +14,54 @@ router = APIRouter()
 
 _PDF_MAGIC = b"%PDF"
 _MAX_PDF_BYTES = 200 * 1024 * 1024  # 200 MB
-_UPLOAD_CHUNK_BYTES = 1024 * 1024  # 1 MB
+_UPLOAD_CHUNK_BYTES = 1024 * 1024   # 1 MB
 
 
-def _doi_to_filename(doi: str) -> str:
-    """Convert a DOI to a deterministic filename with collision-resistant hashing."""
-    digest = hashlib.sha256(doi.encode("utf-8")).hexdigest()
-    return f"{digest}.pdf"
+def _slugify(text: str, max_words: int | None = None) -> str:
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", "", text)
+    words = text.split()
+    if max_words:
+        words = words[:max_words]
+    return "_".join(words)
+
+
+def _build_filename(doi: str, record: dict) -> str:
+    """
+    Build a human-readable PDF filename:
+        {venue}_{year}__{title_slug}__{first_author_lastname}.pdf
+
+    Falls back gracefully when fields are missing.
+    """
+    parts: list[str] = []
+
+    venue = _slugify(record.get("venue", "")).strip("_")
+    year = record.get("publication_year")
+    if venue and year:
+        parts.append(f"{venue}_{year}")
+    elif venue:
+        parts.append(venue)
+    elif year:
+        parts.append(str(year))
+
+    title_slug = record.get("title_slug", "").strip()
+    if not title_slug:
+        title_slug = _slugify(record.get("title", ""), max_words=5).strip("_")
+    if title_slug:
+        parts.append(title_slug)
+
+    authors = record.get("authors", [])
+    if authors:
+        last_name = authors[0].strip().split()[-1].lower()
+        last_name = re.sub(r"[^\w]", "", last_name)
+        if last_name:
+            parts.append(last_name)
+
+    if parts:
+        return "__".join(parts) + ".pdf"
+
+    # Final fallback: sanitized DOI
+    return re.sub(r"[^\w\-]", "_", doi) + ".pdf"
 
 
 # ── Fixed-path routes must be registered before /{doi:path} catch-alls ────────
@@ -101,7 +142,7 @@ async def upload_pdf(doi: str, file: UploadFile = File(...)) -> dict:
 
     pdf_dir = Path(settings.pdf_dir)
     pdf_dir.mkdir(parents=True, exist_ok=True)
-    filename = _doi_to_filename(doi)
+    filename = _build_filename(doi, existing)
     dest = pdf_dir / filename
     tmp_dest = pdf_dir / f".{filename}.{uuid4().hex}.uploading"
 

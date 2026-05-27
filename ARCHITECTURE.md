@@ -32,10 +32,14 @@ RAG System        ──GET  /papers?ingested=false──►  │
 1. Caller first uploads metadata via `POST /papers` (record must exist — 404 otherwise).
 2. Caller then POSTs a multipart `file` to `POST /papers/{doi:path}/pdf`.
 3. Route streams the upload in 1 MB chunks, validates magic bytes (`%PDF`) on the first chunk, and enforces a 200 MB limit while reading.
-4. File is written to `{PDF_DIR}/{sha256(doi)}.pdf` so the DOI canonical key maps deterministically to one filename without sanitizer collisions.
+4. Filename is built from the stored record fields: `{venue}_{year}__{title_slug}__{first_author_lastname}.pdf`. Falls back gracefully when fields are absent — omits missing parts, uses a stop-word-stripped title slug if `title_slug` is empty, and falls back to sanitized DOI if all else fails.
 5. `pdf_path` and `updated_at` are updated on the existing record via `$set`.
 6. Re-uploading silently overwrites the previous file and path — no confirmation required.
 7. Response: `{"doi": ..., "pdf_path": ..., "size_bytes": N}`.
+
+**Filename example:** `icra_2023__motion_planning_robot_arms__smith.pdf`
+
+**`title_slug` population:** set by the caller (e.g. via `POST /simplify-title` on the RFR service) before uploading the PDF. If absent, the upload endpoint derives a basic slug from the title by lowercasing and taking the first 5 words.
 
 ### Upsert path (POST /papers or POST /papers/bulk)
 
@@ -108,9 +112,11 @@ MongoDB document stored in the `papers` collection:
 | `publication_year` | int \| null     | `$set`              |                                    |
 | `source`           | string          | `$set`              | Provider name (openalex, ieee, ...) |
 | `url`              | string          | `$set`              | Landing page URL                   |
+| `venue`            | string          | `$set`              | Conference or journal short name (e.g. `ICRA`, `TRO`) |
 | `pdf_link`         | string          | `$set`              | Direct PDF URL if known            |
 | `pdf_path`         | string          | `$set`              | Local filesystem path if downloaded|
 | `snippet`          | string          | `$set`              | Abstract or excerpt                |
+| `title_slug`       | string          | `$set`              | 4–6 word snake_case slug; set via RFR `/simplify-title` |
 | `is_abstract`      | bool            | `$set`              | Whether snippet is a full abstract |
 | `tags`             | array[string]   | `$set`              | User-assigned tags                 |
 | `ingested`         | bool            | `$set`              | Whether RAG has ingested this paper|

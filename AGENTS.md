@@ -144,9 +144,50 @@ Do not skip this step. It is how the next agent — human or AI — knows what h
 7. Update `.env.example` if new config keys were added.
 8. Increment patch version in `VERSION.md`.
 9. Prepend a new entry to `AGENT_LOG.md` (see §10).
-10. Summarize changes, assumptions, and residual risks.
+10. Output a git commit message (see §12).
+11. Summarize changes, assumptions, and residual risks.
 
-## 11. Definition of Done
+## 12. Git Commit Message (Mandatory)
+
+After every change, output a ready-to-use git commit message in this exact format:
+
+```
+<type>(<scope>): <short imperative summary under 72 chars>
+
+<body — what changed and why, wrapped at 72 chars. Omit if the
+subject line is self-explanatory.>
+
+Files: <comma-separated list of files changed>
+Version: <new VERSION_NAME value>
+```
+
+**Type** must be one of: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
+**Scope** is the top-level directory or module affected (e.g. `services`, `api`, `scripts`, `deploy`, `config`).
+
+Examples:
+
+```
+feat(api): add PDF upload endpoint with streaming and magic-byte check
+
+Streams upload in 1 MB chunks, validates %PDF magic bytes on the
+first chunk, writes atomically via temp file, updates pdf_path on
+the existing record.
+
+Files: api/routes/papers.py, requirements.txt, ARCHITECTURE.md
+Version: paper-library-v0.1.3
+```
+
+```
+fix(api): move overwrite_missing_fields from query param to request body
+
+Files: services/models.py, api/routes/papers.py, ARCHITECTURE.md
+Version: paper-library-v0.1.2
+```
+
+Output the commit message in a fenced code block so the user can copy it directly.
+Do not suggest committing `.env` or any file matching `.gitignore`.
+
+## 13. Definition of Done
 
 - Code is syntactically valid Python.
 - `doi` index is unique; duplicate inserts are rejected at the DB level.

@@ -63,7 +63,22 @@ A self-hosted paper metadata and PDF reference store deployed in a single Proxmo
 - MongoDB must only listen on localhost (port 27017) — do not expose externally without authentication.
 - DOI uniqueness is enforced at the database level via a unique index.
 
-## 6. Agent Handoff Log (Mandatory)
+## 6. Git Commit Message (Mandatory)
+
+After completing any task that changes code or documentation, output a suggested git commit message using this format:
+
+```
+<short imperative summary under 72 chars>
+
+- <bullet: what changed and why>
+- <bullet: what changed and why>
+...
+```
+
+The summary line must be imperative mood ("add", "fix", "update", not "added" or "fixes").
+Include only files that actually changed. Do not suggest committing `.env` or any file matching `.gitignore`.
+
+## 7. Agent Handoff Log (Mandatory)
 
 `AGENT_LOG.md` at the repo root is the shared memory between agents. Every agent that touches this repo must participate in the loop.
 
