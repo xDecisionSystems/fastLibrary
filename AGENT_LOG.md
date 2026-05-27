@@ -1,0 +1,61 @@
+# AGENT_LOG.md
+
+Shared handoff log between agents. Newest entry first.
+Read this before starting any task. Append an entry after completing any task.
+Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most recent).
+
+---
+
+## [2026-05-27] claude-sonnet-4-6 — added agent handoff log protocol
+
+**Action:** Added `AGENT_LOG.md` handoff protocol to both `CLAUDE.md` (§6) and `AGENTS.md` (§10) so that every agent — Claude, Codex, or other — reads this file before acting and prepends an entry after acting. Created this file as the initial log.
+
+**Files changed:**
+- `CLAUDE.md` — added §6 Agent Handoff Log
+- `AGENTS.md` — added §10 Agent Handoff Log, renumbered Change Workflow to §11
+- `AGENT_LOG.md` — created (this file)
+
+**Decisions:** Newest-first ordering keeps the most relevant context at the top of the file without requiring a full read. Archive threshold of 200 lines / 10 entries keeps the active file small enough to fit in any agent's context window cheaply.
+
+**Open items:** None from this change. See initial scaffold entry below for broader open items.
+
+---
+
+## [2026-05-27] claude-sonnet-4-6 — initial project scaffold
+
+**Action:** Built the complete paper-library microservice from scratch per Implementation Instructions. Covers FastAPI + Motor/MongoDB backend, all CRUD and bulk-upsert endpoints, deploy scripts for Proxmox LXC, and governance files.
+
+**Files changed:**
+- `api/__init__.py` — created (package init)
+- `api/main.py` — created (FastAPI app, lifespan, router registration, root redirect)
+- `api/routes/__init__.py` — created (package init)
+- `api/routes/health.py` — created (GET /health, reads version from VERSION.md)
+- `api/routes/papers.py` — created (POST /papers, POST /papers/bulk, GET /papers, GET /papers/{doi:path}, PATCH /papers/{doi:path}, DELETE /papers/{doi:path})
+- `config/__init__.py` — created (package init)
+- `config/settings.py` — created (frozen dataclass, fail-fast on missing MONGO_URI/MONGO_DB)
+- `services/__init__.py` — created (package init)
+- `services/models.py` — created (Paper, PaperUpdate, BulkUpsertRequest Pydantic models)
+- `services/mongo.py` — created (Motor client, index creation, upsert_paper, bulk_upsert, list_papers, count_papers, get_paper, delete_paper)
+- `scripts/import_searcher.py` — created (CLI bulk-importer from searcher JSON envelope)
+- `deploy/proxmox_deploy.sh` — created (LXC creation, MongoDB 7.0 apt install, systemd service)
+- `deploy/restart.sh` — created (mongod → wait → paper-library → wait)
+- `deploy/update.sh` — created (git pull → pip install → daemon-reload → restart → version diff)
+- `requirements.txt` — created
+- `.env.example` — created
+- `VERSION.md` — created (paper-library-v0.1.0)
+- `AGENTS.md` — created
+- `CLAUDE.md` — created
+- `ARCHITECTURE.md` — created
+
+**Decisions:**
+- Used `{doi:path}` route parameter to capture DOIs containing `/` (e.g. `10.1109/tro.2023.123456`) without requiring callers to double-encode.
+- `created_at` uses `$setOnInsert` so re-upserts never overwrite the original insert timestamp.
+- Text index covers `title` and `tags`; `snippet` excluded until abstract content is reliably populated (noted as planned enhancement in ARCHITECTURE.md).
+- `import_searcher.py` uses only stdlib (`urllib`, `json`, `argparse`) to avoid adding a `requests` dependency for a CLI-only script.
+- Deploy scripts modeled after the `rfr` rag-system repo patterns for consistency across the stack.
+
+**Open items:**
+- No authentication on v1 — this is an internal service but should be revisited before any external exposure.
+- Bulk upsert error reporting is basic (exception message only); could be enriched with per-DOI status codes.
+- PDF download triggering from `pdf_link` is a planned enhancement (documented in ARCHITECTURE.md §10).
+- Webhook/event on new paper insert is a planned enhancement (documented in ARCHITECTURE.md §10).
