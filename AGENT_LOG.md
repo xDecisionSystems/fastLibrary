@@ -6,6 +6,48 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] codex-gpt-5 — verified issues 2 and 3 are resolved
+
+**Action:** Validated that issue 2 (PDF upload memory pressure) and issue 3 (architecture validation model mismatch) are already fixed in the current branch. Confirmed chunked upload with in-stream size enforcement in `POST /papers/{doi:path}/pdf` and confirmed `ARCHITECTURE.md` now documents `UpsertRequest`/`BulkUpsertRequest` validation models.
+
+**Files changed:**
+- `AGENT_LOG.md` — prepended verification entry
+
+**Decisions:** No further code changes were needed because both requested issues were already addressed by the latest implementation.
+
+**Open items:** None for issues 2 and 3.
+
+---
+
+## [2026-05-27] codex-gpt-5 — made DOI-based PDF upload collision-safe and streamed
+
+**Action:** Updated `POST /papers/{doi:path}/pdf` to stream uploads in 1 MB chunks (instead of reading entire file into memory), validate `%PDF` magic bytes on the first chunk, enforce the 200 MB limit during streaming, and write atomically via a temporary file. Replaced sanitizer-based filename mapping with deterministic `sha256(doi).pdf` so DOI identity maps consistently and avoids filename collisions between different DOIs.
+
+**Files changed:**
+- `api/routes/papers.py` — hash-based DOI filename helper, chunked upload handling, temp-file write/replace flow, empty-file validation
+- `ARCHITECTURE.md` — updated validation model names and PDF upload flow to match streaming/hash behavior
+- `VERSION.md` — bumped to `paper-library-v0.1.4`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used SHA-256 over DOI as the filename to keep deterministic overwrite behavior per DOI while removing sanitizer collision risk. Used per-request temp filenames (`uuid4`) to avoid clobbering partial uploads when concurrent uploads happen.
+
+**Open items:** No API contract change to endpoint path or response schema; clients can continue using existing upload calls.
+
+---
+
+## [2026-05-27] codex-gpt-5 — reviewed recent Claude changes from AGENT_LOG
+
+**Action:** Audited the two newest Claude entries (`v0.1.2` upsert contract update and `v0.1.3` PDF upload endpoint) against current source files for behavioral risk, contract consistency, and documentation alignment.
+
+**Files changed:**
+- `AGENT_LOG.md` — prepended this review handoff entry
+
+**Decisions:** Kept this as a review-only task with no code edits; focused findings on data integrity, resource usage risk, and log/doc consistency.
+
+**Open items:** Review findings to address: DOI-to-filename collisions in PDF upload path can overwrite files across different records, upload path still reads full body into memory before size gate, and one architecture line still mentions only `Paper`/`PaperUpdate` validation despite `UpsertRequest`.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — added PDF upload endpoint
 
 **Action:** Added `POST /papers/{doi:path}/pdf` multipart upload endpoint. Metadata record must exist before upload (404 otherwise). Validates PDF magic bytes, enforces 200 MB limit, saves to `PDF_DIR/{sanitized_doi}.pdf`, updates `pdf_path` and `updated_at` on the record. Re-upload silently overwrites. Registered the `/pdf` route before the `/{doi:path}` catch-alls to avoid FastAPI routing ambiguity.

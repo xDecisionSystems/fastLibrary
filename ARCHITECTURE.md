@@ -23,7 +23,7 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 **Motor client lifecycle:** opened in the FastAPI `lifespan` context manager at startup, closed on shutdown. Index creation (unique on `doi`; text on `title`/`tags`; compound on `source`/`publication_year`) runs once at startup.
 
-**Pydantic validation layer:** all inbound JSON is validated against `Paper` or `PaperUpdate` before any database call.
+**Pydantic validation layer:** all inbound JSON is validated against request models (`UpsertRequest`, `BulkUpsertRequest`, `Paper`, `PaperUpdate`) before any database call.
 
 ## 3. Request Flow
 
@@ -31,15 +31,15 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 1. Caller first uploads metadata via `POST /papers` (record must exist — 404 otherwise).
 2. Caller then POSTs a multipart `file` to `POST /papers/{doi:path}/pdf`.
-3. Route reads the full file into memory, validates magic bytes (`%PDF`), and enforces a 200 MB limit.
-4. File is written to `{PDF_DIR}/{sanitized_doi}.pdf` (DOI non-alphanumeric chars replaced with `_`).
+3. Route streams the upload in 1 MB chunks, validates magic bytes (`%PDF`) on the first chunk, and enforces a 200 MB limit while reading.
+4. File is written to `{PDF_DIR}/{sha256(doi)}.pdf` so the DOI canonical key maps deterministically to one filename without sanitizer collisions.
 5. `pdf_path` and `updated_at` are updated on the existing record via `$set`.
 6. Re-uploading silently overwrites the previous file and path — no confirmation required.
 7. Response: `{"doi": ..., "pdf_path": ..., "size_bytes": N}`.
 
 ### Upsert path (POST /papers or POST /papers/bulk)
 
-1. FastAPI deserializes and validates request body via `Paper` / `BulkUpsertRequest`; DOI is normalized and must be non-empty.
+1. FastAPI deserializes and validates request body via `UpsertRequest` / `BulkUpsertRequest` (containing `Paper` records); DOI is normalized and must be non-empty.
 2. Route calls `mongo.upsert_paper()` or `mongo.bulk_upsert()`, passing overwrite flags.
 3. MongoDB `update_one` / `bulk_write` with `upsert=True`, matching on `doi`.
 4. Default behavior (`overwrite_missing_fields=false`) is sparse update: only caller-provided fields are updated + `updated_at`.
