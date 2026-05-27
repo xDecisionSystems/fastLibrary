@@ -1,23 +1,30 @@
+import re
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
-from services.models import BulkUpsertRequest, Paper, PaperUpdate
+from config.settings import settings
+from services.models import BulkUpsertRequest, Paper, PaperUpdate, UpsertRequest
 from services import mongo
 
 router = APIRouter()
 
+_PDF_MAGIC = b"%PDF"
+_MAX_PDF_BYTES = 200 * 1024 * 1024  # 200 MB
+
+
+def _doi_to_filename(doi: str) -> str:
+    """Convert a DOI to a safe filesystem filename."""
+    return re.sub(r"[^\w\-]", "_", doi) + ".pdf"
+
+
+# ── Fixed-path routes must be registered before /{doi:path} catch-alls ────────
 
 @router.post("")
-async def create_paper(
-    paper: Paper,
-    overwrite_missing_fields: bool = Query(
-        False,
-        description="If true, omitted fields are overwritten with defaults.",
-    ),
-) -> dict:
-    doi = await mongo.upsert_paper(paper, overwrite_missing_fields=overwrite_missing_fields)
+async def create_paper(body: UpsertRequest) -> dict:
+    doi = await mongo.upsert_paper(body.paper, overwrite_missing_fields=body.overwrite_missing_fields)
     return {"doi": doi, "action": "upserted"}
 
 
@@ -79,6 +86,38 @@ async def list_papers(
                 doc[key] = doc[key].isoformat()
 
     return {"total": total, "skip": skip, "limit": limit, "results": results}
+
+
+# ── Per-DOI routes ─────────────────────────────────────────────────────────────
+
+@router.post("/{doi:path}/pdf")
+async def upload_pdf(doi: str, file: UploadFile = File(...)) -> dict:
+    existing = await mongo.get_paper(doi)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Paper not found. Upload metadata first.")
+
+    content = await file.read()
+
+    if len(content) > _MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 200 MB limit.")
+
+    if not content.startswith(_PDF_MAGIC):
+        raise HTTPException(status_code=400, detail="File does not appear to be a valid PDF.")
+
+    pdf_dir = Path(settings.pdf_dir)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    filename = _doi_to_filename(doi)
+    dest = pdf_dir / filename
+
+    dest.write_bytes(content)
+
+    coll = mongo.get_collection()
+    await coll.update_one(
+        {"doi": doi},
+        {"$set": {"pdf_path": str(dest), "updated_at": datetime.utcnow()}},
+    )
+
+    return {"doi": doi, "pdf_path": str(dest), "size_bytes": len(content)}
 
 
 @router.get("/{doi:path}")

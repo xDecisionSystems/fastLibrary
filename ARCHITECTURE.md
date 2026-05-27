@@ -27,6 +27,16 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 ## 3. Request Flow
 
+### PDF upload path (POST /papers/{doi}/pdf)
+
+1. Caller first uploads metadata via `POST /papers` (record must exist — 404 otherwise).
+2. Caller then POSTs a multipart `file` to `POST /papers/{doi:path}/pdf`.
+3. Route reads the full file into memory, validates magic bytes (`%PDF`), and enforces a 200 MB limit.
+4. File is written to `{PDF_DIR}/{sanitized_doi}.pdf` (DOI non-alphanumeric chars replaced with `_`).
+5. `pdf_path` and `updated_at` are updated on the existing record via `$set`.
+6. Re-uploading silently overwrites the previous file and path — no confirmation required.
+7. Response: `{"doi": ..., "pdf_path": ..., "size_bytes": N}`.
+
 ### Upsert path (POST /papers or POST /papers/bulk)
 
 1. FastAPI deserializes and validates request body via `Paper` / `BulkUpsertRequest`; DOI is normalized and must be non-empty.
@@ -51,15 +61,16 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 ## 4. Endpoint Map
 
-| Method | Path                  | Body / Params              | Response                                      |
-|--------|-----------------------|----------------------------|-----------------------------------------------|
-| GET    | /health               | —                          | `{"status": "ok", "version": "..."}`          |
-| POST   | /papers               | `Paper` + `overwrite_missing_fields` (query, optional) | `{"doi": "...", "action": "upserted"}` |
-| POST   | /papers/bulk          | `BulkUpsertRequest` (`papers`, `overwrite_missing_fields`, `overwrite_duplicate_doi`) | `{"upserted": N, "modified": N, "errors": []}` |
-| GET    | /papers               | query params (see below)   | `{"total": N, "skip": N, "limit": N, "results": [...]}` |
-| GET    | /papers/{doi:path}    | —                          | Full paper document or 404                    |
-| PATCH  | /papers/{doi:path}    | `PaperUpdate`              | Updated paper document or 404                 |
-| DELETE | /papers/{doi:path}    | —                          | `{"deleted": true}` or 404                    |
+| Method | Path                     | Body / Params              | Response                                      |
+|--------|--------------------------|----------------------------|-----------------------------------------------|
+| GET    | /health                  | —                          | `{"status": "ok", "version": "..."}`          |
+| POST   | /papers                  | `UpsertRequest` (`paper`, `overwrite_missing_fields`) | `{"doi": "...", "action": "upserted"}` |
+| POST   | /papers/bulk             | `BulkUpsertRequest` (`papers`, `overwrite_missing_fields`, `overwrite_duplicate_doi`) | `{"upserted": N, "modified": N, "errors": []}` |
+| GET    | /papers                  | query params (see below)   | `{"total": N, "skip": N, "limit": N, "results": [...]}` |
+| POST   | /papers/{doi:path}/pdf   | multipart `file`           | `{"doi": "...", "pdf_path": "...", "size_bytes": N}` or 404 |
+| GET    | /papers/{doi:path}       | —                          | Full paper document or 404                    |
+| PATCH  | /papers/{doi:path}       | `PaperUpdate`              | Updated paper document or 404                 |
+| DELETE | /papers/{doi:path}       | —                          | `{"deleted": true}` or 404                    |
 
 **GET /papers query parameters:**
 
@@ -76,11 +87,14 @@ RAG System        ──GET  /papers?ingested=false──►  │
 
 **Note on DOI path encoding:** DOIs containing `/` must be URL-encoded as `%2F` by callers. The `{doi:path}` route captures the full decoded DOI including slashes.
 
-**POST /papers overwrite flag:**
+**Upsert overwrite semantics (`overwrite_missing_fields`):**
 
-| Param                    | Type | Default | Description |
-|--------------------------|------|---------|-------------|
-| `overwrite_missing_fields` | bool | `false` | If `true`, omitted fields overwrite stored values with model defaults. If `false`, omitted fields preserve existing values. |
+| Value   | Behavior |
+|---------|----------|
+| `false` (default) | Sparse update — only fields explicitly provided in the payload are written to MongoDB. Fields absent from the payload are left untouched in the existing document. Implemented via Pydantic `model_dump(exclude_unset=True)`. |
+| `true`  | Full overwrite — all model fields are written, including those that were not in the payload (they take their Pydantic default values). Existing stored values for omitted fields are overwritten with defaults. |
+
+**Important:** "sparse" is determined by what Pydantic marks as *set* — a field is set if it appeared in the JSON input, even if its value equals the default. A field absent from the JSON input is unset and will be excluded from the `$set` operation in sparse mode.
 
 ## 5. Data Contract
 
@@ -165,6 +179,6 @@ The RAG system queries for un-ingested papers and marks them done:
 
 ## 10. Planned Enhancements
 
-- **PDF download trigger**: when a paper with `pdf_link` but no `pdf_path` is upserted, optionally queue a background download job.
+- **PDF download trigger**: when a paper with `pdf_link` but no `pdf_path` is upserted, optionally queue a background download job to fetch and store it automatically (complementing the manual upload endpoint).
 - **Webhook / event on insert**: emit an event (HTTP callback or message queue) when a new paper is inserted, so downstream services (e.g. RAG auto-ingest) can react immediately.
 - **Full-text search on abstracts**: add `snippet` to the text index once abstract content is reliably populated.

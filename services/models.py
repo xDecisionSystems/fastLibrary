@@ -43,6 +43,11 @@ class PaperUpdate(BaseModel):
     ingested: Optional[bool] = None
 
 
+class UpsertRequest(BaseModel):
+    paper: Paper
+    overwrite_missing_fields: bool = False
+
+
 class BulkUpsertRequest(BaseModel):
     papers: list[Paper]
     overwrite_missing_fields: bool = False

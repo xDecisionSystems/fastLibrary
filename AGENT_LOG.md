@@ -6,6 +6,40 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — added PDF upload endpoint
+
+**Action:** Added `POST /papers/{doi:path}/pdf` multipart upload endpoint. Metadata record must exist before upload (404 otherwise). Validates PDF magic bytes, enforces 200 MB limit, saves to `PDF_DIR/{sanitized_doi}.pdf`, updates `pdf_path` and `updated_at` on the record. Re-upload silently overwrites. Registered the `/pdf` route before the `/{doi:path}` catch-alls to avoid FastAPI routing ambiguity.
+
+**Files changed:**
+- `api/routes/papers.py` — added `upload_pdf` handler; added `_doi_to_filename` helper; reordered routes so fixed-path POST routes precede `/{doi:path}` catch-alls; added `re`, `Path`, `File`, `UploadFile` imports
+- `requirements.txt` — added `python-multipart` (required by FastAPI for file uploads)
+- `ARCHITECTURE.md` — added PDF upload path to request flow section; updated endpoint table; updated planned enhancements note
+- `VERSION.md` — bumped to `paper-library-v0.1.3`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Read full file into memory before writing so we can validate magic bytes before touching the filesystem. 200 MB cap is generous for academic PDFs but prevents runaway uploads. DOI sanitization uses `re.sub(r"[^\w\-]", "_", doi)` — deterministic and reversible enough for a local store. Route ordering comment added in code to warn future agents not to reorder.
+
+**Open items:** Large PDFs (>50 MB) will hold the request in memory; a streaming write with magic-byte check on the first chunk would be more efficient if very large files become common.
+
+---
+
+## [2026-05-27] claude-sonnet-4-6 — reviewed codex changes, fixed POST /papers body contract
+
+**Action:** Reviewed all codex-gpt-5 changes from v0.1.1. Found one API inconsistency: `overwrite_missing_fields` on `POST /papers` was a query param while the same flag on `POST /papers/bulk` was a body field. Fixed by introducing `UpsertRequest` wrapper model so both endpoints keep the flag in the body. Documented sparse-upsert semantics (`exclude_unset=True` behavior) explicitly in `ARCHITECTURE.md`.
+
+**Files changed:**
+- `services/models.py` — added `UpsertRequest` wrapper model (`paper` + `overwrite_missing_fields`)
+- `api/routes/papers.py` — `POST /papers` now accepts `UpsertRequest` body instead of `Paper` + query param
+- `ARCHITECTURE.md` — updated endpoint table for `POST /papers`; expanded overwrite semantics section with `exclude_unset` explanation
+- `VERSION.md` — bumped to `paper-library-v0.1.2`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used a wrapper model rather than promoting the flag to a query param on both endpoints, because the body-based pattern is more consistent with REST conventions for non-idempotent operations and keeps the request self-describing.
+
+**Open items:** All prior open items from codex review pass. No new open items.
+
+---
+
 ## [2026-05-27] codex-gpt-5 — fixed sparse-upsert safety and overwrite flags
 
 **Action:** Implemented the requested overwrite controls. Default upsert behavior now preserves existing fields when payload fields are omitted. Added explicit flags to overwrite missing fields and to resolve duplicate DOI rows in bulk payloads. Added DOI non-empty validation, improved bulk-write error reporting, enforced MongoDB localhost bind in deployment, and updated architecture/version docs.
