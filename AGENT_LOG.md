@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — set default REPO_URL in proxmox_deploy.sh
+
+**Action:** Set `REPO_URL` default to `https://github.com/xDecisionSystems/fastLibrary` in `deploy/proxmox_deploy.sh` so the deploy script no longer prompts for the repo URL when using the canonical repository.
+
+**Files changed:**
+- `deploy/proxmox_deploy.sh` — `REPO_URL` default set to canonical GitHub URL
+- `VERSION.md` — bumped to `paper-library-v0.1.7`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The `--repo-url` flag and `REPO_URL` env var still override the default, so non-canonical forks remain fully supported.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — venue management feature (JSON store, API, browser UI)
 
 **Action:** Implemented the full venue management feature: JSON file store at `venues/<slug>.json`, five FastAPI CRUD + prefill endpoints under `/venues`, Azure OpenAI LLM prefill for venue metadata, and four browser-served HTML pages (`/addvenue`, `/venues/ui`, `/conf`, `/journals`). Added `DownloadSource` and `VenueRecord` Pydantic models. Updated settings to include Azure OpenAI credentials and `VENUES_DIR`. Added `openai` and `aiofiles` to requirements.
