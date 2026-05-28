@@ -37,8 +37,7 @@ def prefill_venue(name: str) -> dict:
                 {"role": "system", "content": _VENUE_PREFILL_PROMPT},
                 {"role": "user", "content": name},
             ],
-            temperature=0.0,
-            max_tokens=512,
+            max_completion_tokens=512,
         )
         raw = response.choices[0].message.content or ""
         # Strip markdown fences if the model ignores the instruction

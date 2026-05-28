@@ -1,1 +1,1 @@
-VERSION_NAME=paper-library-v0.1.16
+VERSION_NAME=paper-library-v0.1.17
