@@ -71,5 +71,8 @@ class VenueRecord(BaseModel):
     publisher: str = ""
     access_url: str = ""
     open_access: bool = False
+    all_years: bool = True
+    year_start: Optional[int] = None
+    year_end: Optional[int] = None
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)

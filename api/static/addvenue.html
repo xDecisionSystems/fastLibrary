@@ -35,6 +35,13 @@
   #status.err{color:#cc0000}
   .checkbox-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
   .checkbox-row label{font-size:.875rem;color:#555;flex:0 0 160px}
+  .year-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+  .year-row>label{flex:0 0 160px;font-size:.875rem;color:#555}
+  .year-row .year-fields{display:flex;align-items:center;gap:8px;flex:1}
+  .year-row .year-fields input[type=number]{width:90px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .year-row .year-fields input[type=number]:disabled{background:#f5f5f5;color:#aaa}
+  .year-row .year-fields span{font-size:.875rem;color:#555}
+  .all-years-check{display:flex;align-items:center;gap:6px;font-size:.875rem;color:#555;margin-left:12px}
 </style>
 </head>
 <body>
@@ -57,11 +64,37 @@
     </select>
   </div>
   <div class="row"><label>Publisher</label><input id="f-publisher" type="text" placeholder="e.g. IEEE"></div>
-  <div class="row"><label>Access URL</label><input id="f-access_url" type="url" placeholder="https://"></div>
+  <div class="row">
+    <label>Access URL</label>
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+      <select id="f-access_url-select" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem;display:none" onchange="onUrlSelect(this.value)">
+        <option value="">— select year —</option>
+      </select>
+      <input id="f-access_url" type="url" placeholder="All-years / parent series URL (or select year above)">
+      <div id="url-open" style="display:none">
+        <a id="url-open-link" href="#" target="_blank" style="font-size:.8rem;color:#0066cc">Open in new tab ↗</a>
+      </div>
+    </div>
+  </div>
+
   <div class="checkbox-row">
     <label>Open access</label>
     <input id="f-open_access" type="checkbox">
   </div>
+
+  <div class="year-row">
+    <label>Years</label>
+    <div class="year-fields">
+      <input id="f-year_start" type="number" placeholder="Start" min="1900" max="2100">
+      <span>—</span>
+      <input id="f-year_end" type="number" placeholder="End" min="1900" max="2100">
+    </div>
+    <label class="all-years-check">
+      <input id="f-all_years" type="checkbox" onchange="toggleAllYears(this.checked)">
+      All years
+    </label>
+  </div>
+
   <div class="row"><label>Notes</label><textarea id="f-notes"></textarea></div>
 
   <div class="section-title">Download Sources</div>
@@ -84,6 +117,43 @@
 </div>
 
 <script>
+function onUrlSelect(val){
+  if(!val)return;
+  document.getElementById('f-access_url').value=val;
+  const link=document.getElementById('url-open-link');
+  link.href=val;
+  document.getElementById('url-open').style.display='';
+  window.open(val,'_blank');
+}
+
+async function loadProceedingsUrls(name, type){
+  const sel=document.getElementById('f-access_url-select');
+  sel.style.display='none';
+  sel.innerHTML='<option value="">— select year —</option>';
+  if(!name)return;
+  try{
+    const r=await fetch('/venues/proceedings?name='+encodeURIComponent(name)+'&type='+encodeURIComponent(type));
+    const list=await r.json();
+    if(!list||!list.length)return;
+    list.forEach(item=>{
+      const opt=document.createElement('option');
+      opt.value=item.url;
+      opt.textContent=item.label||(item.year?String(item.year):item.url);
+      sel.appendChild(opt);
+    });
+    sel.style.display='';
+  }catch(e){}
+}
+
+function toggleAllYears(checked){
+  document.getElementById('f-year_start').disabled=checked;
+  document.getElementById('f-year_end').disabled=checked;
+  if(checked){
+    document.getElementById('f-year_start').value='';
+    document.getElementById('f-year_end').value='';
+  }
+}
+
 async function doPrefill(){
   const name=document.getElementById('prefill-name').value.trim();
   if(!name)return;
@@ -100,18 +170,41 @@ async function doPrefill(){
 function populate(d){
   set('f-short_name',d.short_name||'');
   set('f-long_name',d.long_name||'');
-  const sel=document.getElementById('f-type');
-  sel.value=(d.type||'').toLowerCase();
-  if(!sel.value)sel.value='';
+  const typeSel=document.getElementById('f-type');
+  typeSel.value=(d.type||'').toLowerCase();
+  if(!typeSel.value)typeSel.value='';
   set('f-publisher',d.publisher||'');
   set('f-access_url',d.access_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
+  const allYears=!!d.all_years;
+  document.getElementById('f-all_years').checked=allYears;
+  toggleAllYears(allYears);
+  if(!allYears){
+    set('f-year_start',d.year_start||'');
+    set('f-year_end',d.year_end||'');
+  }
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
   (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
+
+  // Populate per-year URL dropdown if IEEE proceedings URLs were returned
+  if(d.ieee_proceedings_urls&&d.ieee_proceedings_urls.length){
+    const sel=document.getElementById('f-access_url-select');
+    sel.innerHTML='<option value="">— select year —</option>';
+    d.ieee_proceedings_urls.forEach(item=>{
+      const opt=document.createElement('option');
+      opt.value=item.url;
+      opt.textContent=item.label||(item.year?String(item.year):item.url);
+      sel.appendChild(opt);
+    });
+    sel.style.display='';
+  } else if((d.publisher||'').toLowerCase().includes('ieee')){
+    const name=document.getElementById('prefill-name').value.trim()||d.long_name||d.short_name||'';
+    loadProceedingsUrls(name, d.type||'conference');
+  }
 }
 
-function set(id,val){document.getElementById(id).value=val;}
+function set(id,val){document.getElementById(id).value=val==null?'':val;}
 
 function addSourceRow(name='',url='',notes=''){
   const tr=document.createElement('tr');
@@ -125,6 +218,9 @@ function addSourceRow(name='',url='',notes=''){
 function esc(s){return String(s).replace(/"/g,'&quot;');}
 
 function getForm(){
+  const allYears=document.getElementById('f-all_years').checked;
+  const yearStart=document.getElementById('f-year_start').value;
+  const yearEnd=document.getElementById('f-year_end').value;
   const sources=[...document.querySelectorAll('#sources-body tr')].map(tr=>{
     const inputs=tr.querySelectorAll('input');
     return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:inputs[2].value.trim()};
@@ -136,6 +232,9 @@ function getForm(){
     publisher:document.getElementById('f-publisher').value.trim(),
     access_url:document.getElementById('f-access_url').value.trim(),
     open_access:document.getElementById('f-open_access').checked,
+    all_years:allYears,
+    year_start:(!allYears&&yearStart)?parseInt(yearStart):null,
+    year_end:(!allYears&&yearEnd)?parseInt(yearEnd):null,
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
   };
@@ -156,9 +255,15 @@ async function doSave(){
 }
 
 function clearForm(){
-  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes'].forEach(id=>set(id,''));
+  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes','f-year_start','f-year_end'].forEach(id=>set(id,''));
   document.getElementById('f-type').value='';
   document.getElementById('f-open_access').checked=false;
+  document.getElementById('f-all_years').checked=true;
+  toggleAllYears(true);
+  const sel=document.getElementById('f-access_url-select');
+  sel.innerHTML='<option value="">— select year —</option>';
+  sel.style.display='none';
+  document.getElementById('url-open').style.display='none';
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');
 }
@@ -187,6 +292,10 @@ async function loadChips(){
     });
   }catch(e){}
 }
+
+// Default to all years
+document.getElementById('f-all_years').checked=true;
+toggleAllYears(true);
 
 loadChips();
 </script>

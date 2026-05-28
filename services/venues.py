@@ -26,44 +26,73 @@ Respond ONLY with valid JSON. No markdown fences, no explanation."""
 _IEEE_XPLORE_BASE = "https://ieeexploreapi.ieee.org/api/v1"
 
 
-def _ieee_xplore_lookup(name: str, venue_type: str) -> str:
-    """Query IEEE Xplore API for the proceedings/journal URL. Returns "" on any failure."""
+def _ieee_fetch_articles(name: str, venue_type: str, max_records: int = 100) -> list:
+    """Fetch articles from IEEE Xplore API. Returns empty list on any failure."""
     if not settings.ieee_xplore_api_key:
-        return ""
+        return []
+    content_type = "Journals" if venue_type == "journal" else "Conferences"
+    params = urllib.parse.urlencode({
+        "querytext": name,
+        "max_records": max_records,
+        "content_type": content_type,
+        "apikey": settings.ieee_xplore_api_key,
+    })
+    url = f"{_IEEE_XPLORE_BASE}/search/articles?{params}"
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        data = json.loads(resp.read().decode())
+    return data.get("articles", [])
+
+
+def ieee_proceedings_urls(name: str, venue_type: str) -> list[dict]:
+    """Return a list of {year, label, url} for all unique per-year proceedings.
+
+    For conferences: one entry per unique publication_number, sorted by year desc.
+    For journals: single entry pointing to the journal home page.
+    Returns [] if IEEE Xplore API key is not configured or lookup fails.
+    """
+    if not settings.ieee_xplore_api_key:
+        return []
     try:
-        params = urllib.parse.urlencode({
-            "querytext": name,
-            "max_records": 5,
-            "apikey": settings.ieee_xplore_api_key,
-        })
-        if venue_type == "journal":
-            url = f"{_IEEE_XPLORE_BASE}/search/articles?{params}&content_type=Journals"
-        else:
-            url = f"{_IEEE_XPLORE_BASE}/search/articles?{params}&content_type=Conferences"
-
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode())
-
-        articles = data.get("articles", [])
+        articles = _ieee_fetch_articles(name, venue_type, max_records=100)
         if not articles:
-            return ""
+            return []
 
-        # For conferences: use publication_number to build the all-proceedings URL
-        # For journals: use punumber to build the journal home URL
-        first = articles[0]
         if venue_type == "journal":
-            punumber = first.get("punumber", "")
-            if punumber:
-                return f"https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber={punumber}"
-        else:
-            publication_number = first.get("publication_number", "")
-            if publication_number:
-                return f"https://ieeexplore.ieee.org/xpl/conhome/{publication_number}/all-proceedings"
+            punumber = articles[0].get("publication_number", "")
+            if not punumber:
+                return []
+            return [{
+                "year": None,
+                "label": articles[0].get("publication_title", name),
+                "url": f"https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber={punumber}",
+            }]
 
-        return ""
+        # Deduplicate by publication_number, keeping the richest title per number
+        seen: dict[int, dict] = {}
+        for a in articles:
+            pub_num = a.get("publication_number")
+            pub_year = a.get("publication_year")
+            if not pub_num or not pub_year:
+                continue
+            pub_num = int(pub_num)
+            pub_year = int(pub_year)
+            if pub_num not in seen:
+                seen[pub_num] = {
+                    "year": pub_year,
+                    "label": a.get("publication_title", str(pub_year)),
+                    "url": f"https://ieeexplore.ieee.org/xpl/conhome/{pub_num}/all-proceedings",
+                }
+
+        return sorted(seen.values(), key=lambda x: x["year"], reverse=True)
     except Exception:
-        return ""
+        return []
+
+
+def _ieee_xplore_lookup(name: str, venue_type: str) -> str:
+    """Return the most recent year's proceedings URL. Returns "" on failure."""
+    urls = ieee_proceedings_urls(name, venue_type)
+    return urls[0]["url"] if urls else ""
 
 
 def prefill_venue(name: str) -> dict:
@@ -88,12 +117,12 @@ def prefill_venue(name: str) -> dict:
         raw = re.sub(r"\n?```$", "", raw.strip())
         result = json.loads(raw)
 
-        # If IEEE publisher, look up the authoritative URL from IEEE Xplore API
         publisher = result.get("publisher", "")
         if "ieee" in publisher.lower() and settings.ieee_xplore_api_key:
-            xplore_url = _ieee_xplore_lookup(name, result.get("type", ""))
-            if xplore_url:
-                result["access_url"] = xplore_url
+            urls = ieee_proceedings_urls(name, result.get("type", ""))
+            if urls:
+                result["access_url"] = urls[0]["url"]
+                result["ieee_proceedings_urls"] = urls
 
         return result
     except Exception as exc:
