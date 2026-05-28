@@ -53,7 +53,7 @@ A self-hosted paper metadata and PDF reference store deployed in a single Proxmo
 ## 4. Change Hygiene
 
 - Update `ARCHITECTURE.md` whenever data model or endpoint contracts change.
-- Update `.env.example` whenever new config keys are introduced.
+- Update `.env.example` whenever new config keys are introduced; also update `.env.dev` with the same keys (use safe local defaults, leave secrets blank).
 - Keep API responses stable unless a breaking change is explicitly requested.
 - Validate all input at system boundaries and return clear HTTP errors.
 

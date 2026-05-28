@@ -150,7 +150,7 @@ Do not skip this step. It is how the next agent — human or AI — knows what h
 4. Implement the smallest coherent change.
 5. Run syntax checks for affected files.
 6. Update `ARCHITECTURE.md` if data flow or endpoint contracts changed.
-7. Update `.env.example` if new config keys were added.
+7. Update `.env.example` if new config keys were added; also update `.env.dev` with the same keys (safe local defaults, secrets left blank).
 8. Increment patch version in `VERSION.md`.
 9. Prepend a new entry to `AGENT_LOG.md` (see §10).
 10. Summarize changes, assumptions, and residual risks.
@@ -188,5 +188,5 @@ Do not include `.env` or any file matching `.gitignore`.
 - Bulk upsert is idempotent — sending the same payload twice produces identical DB state.
 - Existing records are not wiped on re-ingest (upsert-by-DOI, not replace).
 - Endpoint behavior matches `ARCHITECTURE.md`.
-- New config keys are documented in `.env.example`.
+- New config keys are documented in `.env.example` and mirrored in `.env.dev`.
 - `VERSION.md` is updated on every code change.
