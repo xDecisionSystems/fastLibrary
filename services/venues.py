@@ -68,6 +68,12 @@ def ieee_proceedings_urls(name: str, venue_type: str) -> list[dict]:
                 "url": f"https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber={punumber}",
             }]
 
+        # Build keyword filter from significant words in the query (4+ chars)
+        _STOPWORDS = {"ieee", "aiaa", "acm", "conference", "international", "proceedings",
+                      "annual", "symposium", "workshop", "journal", "transactions", "systems",
+                      "with", "from", "for", "and", "the", "on", "of", "in", "at"}
+        keywords = {w.lower() for w in re.split(r"\W+", name) if len(w) >= 4 and w.lower() not in _STOPWORDS}
+
         # Deduplicate by publication_number, keeping the richest title per number
         seen: dict[int, dict] = {}
         for a in articles:
@@ -84,7 +90,12 @@ def ieee_proceedings_urls(name: str, venue_type: str) -> list[dict]:
                     "url": f"https://ieeexplore.ieee.org/xpl/conhome/{pub_num}/all-proceedings",
                 }
 
-        return sorted(seen.values(), key=lambda x: x["year"], reverse=True)
+        # Filter to entries whose label shares at least one keyword with the query
+        results = [
+            v for v in seen.values()
+            if not keywords or any(kw in v["label"].lower() for kw in keywords)
+        ]
+        return sorted(results, key=lambda x: x["year"], reverse=True)
     except Exception:
         return []
 

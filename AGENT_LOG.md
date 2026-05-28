@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — filter noisy IEEE Xplore results; surface proceedings errors
+
+**Action:** IEEE Xplore full-text search returns fuzzy matches that include unrelated conferences. Added a keyword filter: significant words (4+ chars, excluding common stopwords) are extracted from the query name, and only entries whose label contains at least one keyword are kept. Also added "systems" to stopwords as it's too generic to discriminate. Separately, made `loadProceedingsUrls` and `populate` async to correctly sequence status messages, and added visible error when no proceedings are found.
+
+**Files changed:**
+- `services/venues.py` — keyword filter in `ieee_proceedings_urls`; "systems" in stopwords
+- `api/static/addvenue.html` — `populate`/`loadProceedingsUrls` async; status messages for loading/empty/error
+- `VERSION.md` — bumped to `paper-library-v0.1.31`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Stopwords exclude common words that appear in many unrelated IEEE venues (systems, international, conference, etc.) so filtering is based on domain-specific terms only (e.g. "avionics", "digital"). Filter falls back to returning all results if no keywords survive stopword removal.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section. IEEE Xplore API key must be added to `/opt/paper-library/.env` on the deployed server (`IEEE_XPLORE_API_KEY=dsf4z95psqjg6zrtej3f6qx2`).
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — fix proceedings list not appearing after AI prefill
 
 **Action:** Proceedings list was silently empty when the IEEE Xplore API key was unconfigured or returned no results. Added a visible status message during lookup, an error message when results are empty (explaining the likely cause), and made `populate()`/`loadProceedingsUrls()` async so status messages sequence correctly rather than being overwritten.
