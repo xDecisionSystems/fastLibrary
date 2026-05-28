@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — fix proc-list not rendering: use display:block not display:''
+
+**Action:** `buildProcList` was setting `list.style.display=''` to show the list, which reverts to the CSS class default of `display:none`. Changed to `display:'block'` so the list is explicitly shown after items are appended.
+
+**Files changed:**
+- `api/static/addvenue.html` — `list.style.display='block'` in `buildProcList`
+- `VERSION.md` — bumped to `paper-library-v0.1.33`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Setting `display:''` removes the inline style and lets the stylesheet rule win — which is `display:none`. Must use an explicit value.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — fix proceedings lookup using typo'd prefill input
 
 **Action:** The proceedings fallback in `populate()` was using the raw prefill bar text as the IEEE Xplore query name. If the user typed a misspelling (e.g. "avioincs"), the API returned zero results. Fixed by preferring `d.long_name` (LLM-corrected) over the raw input. Order is now: long_name → short_name → prefill input.
