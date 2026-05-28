@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — fix proceedings lookup using typo'd prefill input
+
+**Action:** The proceedings fallback in `populate()` was using the raw prefill bar text as the IEEE Xplore query name. If the user typed a misspelling (e.g. "avioincs"), the API returned zero results. Fixed by preferring `d.long_name` (LLM-corrected) over the raw input. Order is now: long_name → short_name → prefill input.
+
+**Files changed:**
+- `api/static/addvenue.html` — `populate()` fallback name order corrected
+- `VERSION.md` — bumped to `paper-library-v0.1.32`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The LLM always normalises the venue name correctly, so `d.long_name` is the most reliable source for the IEEE query.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — filter noisy IEEE Xplore results; surface proceedings errors
 
 **Action:** IEEE Xplore full-text search returns fuzzy matches that include unrelated conferences. Added a keyword filter: significant words (4+ chars, excluding common stopwords) are extracted from the query name, and only entries whose label contains at least one keyword are kept. Also added "systems" to stopwords as it's too generic to discriminate. Separately, made `loadProceedingsUrls` and `populate` async to correctly sequence status messages, and added visible error when no proceedings are found.

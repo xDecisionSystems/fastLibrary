@@ -201,7 +201,7 @@ async function populate(d){
     buildProcList(d.ieee_proceedings_urls);
     setStatus('Prefilled — review and save.','');
   } else if((d.publisher||'').toLowerCase().includes('ieee')){
-    const name=document.getElementById('prefill-name').value.trim()||d.long_name||d.short_name||'';
+    const name=d.long_name||d.short_name||document.getElementById('prefill-name').value.trim()||'';
     await loadProceedingsUrls(name, d.type||'conference');
   } else {
     setStatus('Prefilled — review and save.','');
