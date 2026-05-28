@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
-from config.settings import settings
+from config.settings import PDF_DIR, settings
 from services.models import BulkUpsertRequest, Paper, PaperUpdate, UpsertRequest
 from services import mongo
 
@@ -140,11 +140,10 @@ async def upload_pdf(doi: str, file: UploadFile = File(...)) -> dict:
     if existing is None:
         raise HTTPException(status_code=404, detail="Paper not found. Upload metadata first.")
 
-    pdf_dir = Path(settings.pdf_dir)
-    pdf_dir.mkdir(parents=True, exist_ok=True)
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
     filename = _build_filename(doi, existing)
-    dest = pdf_dir / filename
-    tmp_dest = pdf_dir / f".{filename}.{uuid4().hex}.uploading"
+    dest = PDF_DIR / filename
+    tmp_dest = PDF_DIR / f".{filename}.{uuid4().hex}.uploading"
 
     total_bytes = 0
     first_chunk = True

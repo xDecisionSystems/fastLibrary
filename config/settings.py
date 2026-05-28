@@ -6,6 +6,9 @@ import os
 
 load_dotenv()
 
+PDF_DIR = Path("pdf")
+VENUES_DIR = Path("venues")
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -13,8 +16,6 @@ class Settings:
     mongo_db: str
     api_host: str
     api_port: int
-    pdf_dir: str
-    venues_dir: Path
     azure_openai_endpoint: str
     azure_openai_api_key: str
     azure_openai_api_version: str
@@ -33,8 +34,6 @@ def _load() -> Settings:
         mongo_db=mongo_db,
         api_host=os.getenv("API_HOST", "0.0.0.0"),
         api_port=int(os.getenv("API_PORT", "8000")),
-        pdf_dir=os.getenv("PDF_DIR", "/opt/paper-library/pdfs"),
-        venues_dir=Path(os.getenv("VENUES_DIR", "/opt/paper-library/venues")),
         azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
         azure_openai_api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
         azure_openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),

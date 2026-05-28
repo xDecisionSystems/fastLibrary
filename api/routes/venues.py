@@ -3,9 +3,8 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
 
-from config.settings import settings
+from config.settings import VENUES_DIR
 from services.models import VenueRecord
 from services.venues import prefill_venue
 
@@ -17,7 +16,7 @@ def _slug(short_name: str) -> str:
 
 
 def _venue_path(slug: str) -> Path:
-    return settings.venues_dir / f"{slug}.json"
+    return VENUES_DIR / f"{slug}.json"
 
 
 @router.get("/prefill")
@@ -40,9 +39,9 @@ async def create_venue(venue: VenueRecord):
 
 @router.get("")
 async def list_venues():
-    settings.venues_dir.mkdir(parents=True, exist_ok=True)
+    VENUES_DIR.mkdir(parents=True, exist_ok=True)
     result = []
-    for f in sorted(settings.venues_dir.glob("*.json")):
+    for f in sorted(VENUES_DIR.glob("*.json")):
         try:
             d = json.loads(f.read_text(encoding="utf-8"))
             result.append({

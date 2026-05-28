@@ -15,7 +15,7 @@ env/
 !.env.example
 
 # PDFs and data
-pdfs/
+pdf/
 *.pdf
 
 # Venue JSON store (local data, not committed)

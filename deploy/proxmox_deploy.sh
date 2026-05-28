@@ -451,8 +451,8 @@ lxc_exec "$VMID" "
 # ─── PDF storage directory ────────────────────────────────────────────────────
 log "Creating PDF storage directory ..."
 lxc_exec "$VMID" "
-  mkdir -p /opt/paper-library/pdfs
-  chown paperuser:paperuser /opt/paper-library/pdfs
+  mkdir -p /opt/paper-library/pdf
+  chown paperuser:paperuser /opt/paper-library/pdf
 "
 
 # ─── paper-library systemd service ───────────────────────────────────────────
