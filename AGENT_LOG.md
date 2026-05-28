@@ -6,6 +6,36 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — proceedings list: label as clickable link, URL hidden
+
+**Action:** Removed the separate URL text from each proceedings row; the label/name is now the only visible element and is itself the clickable link opening in a new tab. Removed unused `.proc-label` CSS.
+
+**Files changed:**
+- `api/static/addvenue.html` — `buildProcList` renders `[cb] label↗` only; `.proc-label` CSS removed
+- `VERSION.md` — bumped to `paper-library-v0.1.26`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** URL is preserved in `data-url` on the checkbox for form submission; it just isn't shown in the UI.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
+## [2026-05-27] claude-sonnet-4-6 — show full URL in proceedings checkbox list
+
+**Action:** Updated each proceedings checkbox row to display the label and the full URL as separate elements. The label (year + title) appears as plain text; the URL appears beside it as a clickable link opening in a new tab. Added subtle row separators and `word-break:break-all` so long URLs don't overflow.
+
+**Files changed:**
+- `api/static/addvenue.html` — `buildProcList` renders `[cb] label  url↗`; CSS updated for two-column row layout
+- `VERSION.md` — bumped to `paper-library-v0.1.25`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Label and URL are separate DOM nodes so the checkbox data-* attributes still store the canonical label/url independently of display formatting.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — proceedings checkbox controls: toggle-all and years-since filter
 
 **Action:** Added "Select / Deselect All" toggle button and "Years since" number input to the proceedings checkbox list header. The years-since input checks only years >= the entered value on each keystroke; clearing it re-checks all items. Removed the year-range (start/end) text boxes from the form. Cleaned up all related CSS, JS helpers (`toggleAllYears`), and `clearForm`/`getForm`/`populate` references to year_start/year_end/all_years.
