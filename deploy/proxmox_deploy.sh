@@ -432,11 +432,12 @@ if [[ -n "$ENV_FILE" && -f "$ENV_FILE" ]]; then
     scp -o ControlPath="${SSH_SOCKET}" "$ENV_FILE" "root@${PROXMOX_HOST}:${tmp_remote}"
     ssh_run "$PROXMOX_HOST" \
       "pct push ${VMID} ${tmp_remote} ${ENV_DEST} --perms 0600 && rm -f ${tmp_remote}"
+    lxc_exec "$VMID" "chown paperuser:paperuser ${ENV_DEST}"
   fi
   log "Env file uploaded."
 else
   log "No env file supplied — copying .env.example ..."
-  lxc_exec "$VMID" "cp ${INSTALL_DIR}/.env.example ${ENV_DEST}"
+  lxc_exec "$VMID" "cp ${INSTALL_DIR}/.env.example ${ENV_DEST} && chown paperuser:paperuser ${ENV_DEST} && chmod 0600 ${ENV_DEST}"
   log "Edit ${ENV_DEST} on VMID ${VMID} to verify MONGO_URI and MONGO_DB."
 fi
 
@@ -487,6 +488,10 @@ lxc_exec "$VMID" "
     curl -sf http://127.0.0.1:${API_PORT}/health > /dev/null 2>&1 && exit 0
     sleep 2
   done
+  echo '--- paper-library service status ---'
+  systemctl status paper-library --no-pager -l || true
+  echo '--- last 50 journal lines ---'
+  journalctl -u paper-library -n 50 --no-pager || true
   echo 'paper-library did not start in time'; exit 1
 "
 log "paper-library PASSED."
