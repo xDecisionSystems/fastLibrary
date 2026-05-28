@@ -89,11 +89,6 @@ def ieee_proceedings_urls(name: str, venue_type: str) -> list[dict]:
         return []
 
 
-def _ieee_xplore_lookup(name: str, venue_type: str) -> str:
-    """Return the most recent year's proceedings URL. Returns "" on failure."""
-    urls = ieee_proceedings_urls(name, venue_type)
-    return urls[0]["url"] if urls else ""
-
 
 def prefill_venue(name: str) -> dict:
     if not settings.azure_openai_endpoint or not settings.azure_openai_api_key:
@@ -121,7 +116,6 @@ def prefill_venue(name: str) -> dict:
         if "ieee" in publisher.lower() and settings.ieee_xplore_api_key:
             urls = ieee_proceedings_urls(name, result.get("type", ""))
             if urls:
-                result["access_url"] = urls[0]["url"]
                 result["ieee_proceedings_urls"] = urls
 
         return result

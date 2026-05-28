@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — fix access_url overwritten with single-year IEEE URL
+
+**Action:** `prefill_venue` was replacing `access_url` with `urls[0]["url"]` (most recent year only) after fetching IEEE proceedings. Removed that assignment so `access_url` keeps whatever the LLM returned (the all-years parent series URL or blank). Per-year URLs are still returned in `ieee_proceedings_urls` for the checkbox list. Removed the now-unused `_ieee_xplore_lookup` helper.
+
+**Files changed:**
+- `services/venues.py` — removed `result["access_url"] = urls[0]["url"]`; removed `_ieee_xplore_lookup`
+- `VERSION.md` — bumped to `paper-library-v0.1.27`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The LLM prompt already instructs the model to leave `access_url` blank if uncertain, so the safest behavior is to never overwrite it with a per-year URL from the API.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — proceedings list: label as clickable link, URL hidden
 
 **Action:** Removed the separate URL text from each proceedings row; the label/name is now the only visible element and is itself the clickable link opening in a new tab. Removed unused `.proc-label` CSS.
