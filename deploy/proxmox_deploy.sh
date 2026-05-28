@@ -2,7 +2,7 @@
 # proxmox_deploy.sh
 #
 # Creates a Proxmox LXC and deploys the paper library service:
-#   - mongod           Native MongoDB 7.0          port 27017 (localhost only)
+#   - mongod           Native MongoDB 8.0          port 27017 (localhost only)
 #   - paper-library    FastAPI metadata API         port 8000
 #
 # Requirements (local machine):
@@ -366,14 +366,14 @@ lxc_exec "$VMID" "
     python3 python3-venv python3-pip build-essential curl git gnupg
 "
 
-# ─── MongoDB 7.0 ──────────────────────────────────────────────────────────────
-log "Installing MongoDB 7.0 from official apt repository ..."
+# ─── MongoDB 8.0 ──────────────────────────────────────────────────────────────
+log "Installing MongoDB 8.0 from official apt repository ..."
 lxc_exec "$VMID" "
-  curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
-    gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-  echo \"deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] \
-    https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main\" \
-    > /etc/apt/sources.list.d/mongodb-org-7.0.list
+  curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
+    gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+  echo \"deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] \
+    https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main\" \
+    > /etc/apt/sources.list.d/mongodb-org-8.0.list
   apt-get update -qq
   apt-get install -y -qq mongodb-org
   if grep -q '^net:' /etc/mongod.conf; then

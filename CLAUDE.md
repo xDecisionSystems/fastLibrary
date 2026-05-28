@@ -17,7 +17,7 @@ A self-hosted paper metadata and PDF reference store deployed in a single Proxmo
 - Production: Debian-based Proxmox LXC with `systemd`.
 - Python environment: `/opt/paper-library-env/` (created by `deploy/proxmox_deploy.sh`).
 - App code: `/opt/paper-library/`.
-- MongoDB 7.0 installed natively from the official apt repository; never via Docker.
+- MongoDB 8.0 installed natively from the official apt repository; never via Docker.
 - MongoDB listens on localhost only — never expose port 27017 externally.
 - Shared env lives at `.env` in the project root; `.env.example` documents all keys.
 - Do not add additional deployment targets unless explicitly requested.

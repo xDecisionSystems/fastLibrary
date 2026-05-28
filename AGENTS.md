@@ -61,7 +61,7 @@ Two services run natively inside the LXC (no Docker):
 
 | Service         | Description                     | Port  | Binding        |
 |-----------------|---------------------------------|-------|----------------|
-| `mongod`        | MongoDB 7.0 (native apt)        | 27017 | localhost only |
+| `mongod`        | MongoDB 8.0 (native apt)        | 27017 | localhost only |
 | `paper-library` | FastAPI metadata API (uvicorn)  | 8000  | 0.0.0.0        |
 
 **Never expose MongoDB port 27017 externally.** It must listen on localhost inside the LXC only.
@@ -69,7 +69,7 @@ Two services run natively inside the LXC (no Docker):
 ## 4. Deployment Policy
 
 - Production: single Debian-based Proxmox LXC with `systemd`.
-- MongoDB installed from the official MongoDB 7.0 apt repository (no Docker).
+- MongoDB installed from the official MongoDB 8.0 apt repository (no Docker).
 - Python environment lives at `/opt/paper-library-env/`.
 - App code lives at `/opt/paper-library/`.
 - Activate with: `source /opt/paper-library-env/bin/activate`
