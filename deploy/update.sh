@@ -16,7 +16,22 @@ die() { echo "[update] ERROR: $*" >&2; exit 1; }
 
 # ─── Capture pre-update version ──────────────────────────────────────────────
 OLD_VERSION="$(grep '^VERSION_NAME=' "${INSTALL_DIR}/VERSION.md" 2>/dev/null | cut -d= -f2 || echo 'unknown')"
-log "Current version: ${OLD_VERSION}"
+
+# ─── Peek at the incoming version without applying it ─────────────────────────
+REMOTE_VERSION="$(git -C "${INSTALL_DIR}" fetch --quiet origin 2>/dev/null; \
+  git -C "${INSTALL_DIR}" show origin/HEAD:VERSION.md 2>/dev/null \
+  | grep '^VERSION_NAME=' | cut -d= -f2 || echo 'unknown')"
+
+echo ""
+echo "  Current : ${OLD_VERSION}"
+echo "  Incoming: ${REMOTE_VERSION}"
+echo ""
+read -r -p "  Proceed with update? [Y/n] " _confirm
+case "${_confirm}" in
+  [nN]|[nN][oO]) echo "[update] Aborted."; exit 0 ;;
+  *) ;;
+esac
+echo ""
 
 # ─── Pull latest code ─────────────────────────────────────────────────────────
 log "Pulling latest code in ${INSTALL_DIR} ..."

@@ -6,6 +6,36 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — update.sh: make Y the default in confirmation prompt
+
+**Action:** Changed confirmation prompt from `[y/N]` to `[Y/n]`; pressing Enter now proceeds with the update. Only an explicit `n`/`no` aborts.
+
+**Files changed:**
+- `deploy/update.sh` — prompt changed to `[Y/n]`; case flipped to abort on `n`
+- `VERSION.md` — bumped to `paper-library-v0.1.29`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Empty input (Enter) falls through to the `*` catch-all which proceeds, matching standard Unix convention for a capital default.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
+## [2026-05-27] claude-sonnet-4-6 — update.sh: show version diff and confirm before updating
+
+**Action:** Added a pre-flight confirmation step to `deploy/update.sh`. The script now fetches the remote `VERSION.md` without applying it, prints the current → incoming version transition, and prompts `[y/N]` before proceeding. Answering anything other than `y`/`yes` aborts cleanly with exit 0.
+
+**Files changed:**
+- `deploy/update.sh` — fetch remote VERSION.md, print transition, read confirmation prompt
+- `VERSION.md` — bumped to `paper-library-v0.1.28`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used `git show origin/HEAD:VERSION.md` after a quiet fetch to read the incoming version without touching the working tree, so the pre-update `OLD_VERSION` remains accurate even if the user aborts.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — fix access_url overwritten with single-year IEEE URL
 
 **Action:** `prefill_venue` was replacing `access_url` with `urls[0]["url"]` (most recent year only) after fetching IEEE proceedings. Removed that assignment so `access_url` keeps whatever the LLM returned (the all-years parent series URL or blank). Per-year URLs are still returned in `ieee_proceedings_urls` for the checkbox list. Removed the now-unused `_ieee_xplore_lookup` helper.
