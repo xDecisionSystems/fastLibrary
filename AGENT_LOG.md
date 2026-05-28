@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — fix proceedings list not appearing after AI prefill
+
+**Action:** Proceedings list was silently empty when the IEEE Xplore API key was unconfigured or returned no results. Added a visible status message during lookup, an error message when results are empty (explaining the likely cause), and made `populate()`/`loadProceedingsUrls()` async so status messages sequence correctly rather than being overwritten.
+
+**Files changed:**
+- `api/static/addvenue.html` — `populate` and `loadProceedingsUrls` made async; status messages added for loading, success, and empty-results cases
+- `VERSION.md` — bumped to `paper-library-v0.1.30`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The empty-results message explicitly mentions the IEEE Xplore API key so the user knows what to configure rather than seeing a silent blank.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — update.sh: make Y the default in confirmation prompt
 
 **Action:** Changed confirmation prompt from `[y/N]` to `[Y/n]`; pressing Enter now proceeds with the update. Only an explicit `n`/`no` aborts.
