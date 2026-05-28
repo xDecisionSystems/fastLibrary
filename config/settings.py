@@ -20,6 +20,7 @@ class Settings:
     azure_openai_api_key: str
     azure_openai_api_version: str
     chat_deployment_name: str
+    ieee_xplore_api_key: str
 
 
 def _load() -> Settings:
@@ -38,6 +39,7 @@ def _load() -> Settings:
         azure_openai_api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
         azure_openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
         chat_deployment_name=os.getenv("CHAT_DEPLOYMENT_NAME", ""),
+        ieee_xplore_api_key=os.getenv("IEEE_XPLORE_API_KEY", ""),
     )
 
 
