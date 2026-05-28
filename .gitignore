@@ -20,3 +20,7 @@ pdf/
 
 # Venue JSON store (local data, not committed)
 venues/*.json
+
+# Downloads folder (track folder, ignore contents)
+downloads/*
+!downloads/.gitkeep
