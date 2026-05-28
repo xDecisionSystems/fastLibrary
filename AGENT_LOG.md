@@ -6,6 +6,36 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-27] claude-sonnet-4-6 — proceedings checkbox controls: toggle-all and years-since filter
+
+**Action:** Added "Select / Deselect All" toggle button and "Years since" number input to the proceedings checkbox list header. The years-since input checks only years >= the entered value on each keystroke; clearing it re-checks all items. Removed the year-range (start/end) text boxes from the form. Cleaned up all related CSS, JS helpers (`toggleAllYears`), and `clearForm`/`getForm`/`populate` references to year_start/year_end/all_years.
+
+**Files changed:**
+- `api/static/addvenue.html` — toggle-all button, years-since input, `toggleAllProc()`, `applyYearsSince()`; year-range fields removed
+- `VERSION.md` — bumped to `paper-library-v0.1.24`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** `applyYearsSince` re-checks all boxes when the field is cleared (empty or NaN) so the user can reset to all-selected without clicking the toggle button. Toggle-all detects current state (all checked → deselect all, else → select all).
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
+## [2026-05-27] claude-sonnet-4-6 — replace Access URL dropdown with checkbox list in addvenue.html
+
+**Action:** Replaced the `<select>` dropdown (per-year proceedings URLs) with a scrollable checkbox list. Each item is checked by default, shows year prepended to the label, and links to the proceedings URL in a new tab. `getForm()` now collects only checked items into `proceedings_years: [{year, label, url}]` which maps to the `VenueRecord.proceedings_years` field added to `services/models.py` in the prior session. `clearForm()` and `populate()` updated accordingly.
+
+**Files changed:**
+- `api/static/addvenue.html` — checkbox list replaces dropdown; `buildProcList()` helper; `getForm()` collects `proceedings_years`; `clearForm()` clears list
+- `VERSION.md` — bumped to `paper-library-v0.1.23`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Year is always prepended to the display label (even when the IEEE title already contains it) so each row is unambiguous when skimming. Items use `data-*` attributes on the checkbox to avoid re-reading the DOM at submit time.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section (noted in prior sessions).
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — set default REPO_URL in proxmox_deploy.sh
 
 **Action:** Set `REPO_URL` default to `https://github.com/xDecisionSystems/fastLibrary` in `deploy/proxmox_deploy.sh` so the deploy script no longer prompts for the repo URL when using the canonical repository.

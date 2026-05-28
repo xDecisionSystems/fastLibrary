@@ -35,13 +35,11 @@
   #status.err{color:#cc0000}
   .checkbox-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
   .checkbox-row label{font-size:.875rem;color:#555;flex:0 0 160px}
-  .year-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
-  .year-row>label{flex:0 0 160px;font-size:.875rem;color:#555}
-  .year-row .year-fields{display:flex;align-items:center;gap:8px;flex:1}
-  .year-row .year-fields input[type=number]{width:90px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
-  .year-row .year-fields input[type=number]:disabled{background:#f5f5f5;color:#aaa}
-  .year-row .year-fields span{font-size:.875rem;color:#555}
-  .all-years-check{display:flex;align-items:center;gap:6px;font-size:.875rem;color:#555;margin-left:12px}
+  .proc-list{max-height:180px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:6px 8px;background:#fafafa;display:none}
+  .proc-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:.83rem}
+  .proc-item input[type=checkbox]{flex-shrink:0}
+  .proc-item a{color:#0066cc;text-decoration:none}
+  .proc-item a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -67,12 +65,19 @@
   <div class="row">
     <label>Access URL</label>
     <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-      <select id="f-access_url-select" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem;display:none" onchange="onUrlSelect(this.value)">
-        <option value="">— select year —</option>
-      </select>
-      <input id="f-access_url" type="url" placeholder="All-years / parent series URL (or select year above)">
-      <div id="url-open" style="display:none">
-        <a id="url-open-link" href="#" target="_blank" style="font-size:.8rem;color:#0066cc">Open in new tab ↗</a>
+      <input id="f-access_url" type="url" placeholder="All-years / parent series URL">
+      <div id="proc-list-wrap">
+        <div id="proc-list-header" style="display:none;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-size:.8rem;color:#888">Per-year proceedings — check to save:</span>
+          <button class="btn btn-secondary" style="padding:2px 10px;font-size:.78rem" onclick="toggleAllProc()">Select / Deselect All</button>
+          <label style="font-size:.8rem;color:#888;display:flex;align-items:center;gap:4px">
+            Years since
+            <input id="f-years-since" type="number" min="1900" max="2100" placeholder="e.g. 2018"
+              style="width:80px;padding:2px 6px;border:1px solid #ccc;border-radius:4px;font-size:.8rem"
+              oninput="applyYearsSince(this.value)">
+          </label>
+        </div>
+        <div class="proc-list" id="proc-list"></div>
       </div>
     </div>
   </div>
@@ -80,19 +85,6 @@
   <div class="checkbox-row">
     <label>Open access</label>
     <input id="f-open_access" type="checkbox">
-  </div>
-
-  <div class="year-row">
-    <label>Years</label>
-    <div class="year-fields">
-      <input id="f-year_start" type="number" placeholder="Start" min="1900" max="2100">
-      <span>—</span>
-      <input id="f-year_end" type="number" placeholder="End" min="1900" max="2100">
-    </div>
-    <label class="all-years-check">
-      <input id="f-all_years" type="checkbox" onchange="toggleAllYears(this.checked)">
-      All years
-    </label>
   </div>
 
   <div class="row"><label>Notes</label><textarea id="f-notes"></textarea></div>
@@ -117,41 +109,59 @@
 </div>
 
 <script>
-function onUrlSelect(val){
-  if(!val)return;
-  document.getElementById('f-access_url').value=val;
-  const link=document.getElementById('url-open-link');
-  link.href=val;
-  document.getElementById('url-open').style.display='';
-  window.open(val,'_blank');
+function buildProcList(items){
+  const list=document.getElementById('proc-list');
+  list.innerHTML='';
+  if(!items||!items.length){list.style.display='none';document.getElementById('proc-list-header').style.display='none';return;}
+  items.forEach((item,i)=>{
+    const year=item.year?String(item.year):'';
+    const rawLabel=item.label||year||item.url;
+    const displayLabel=year&&!rawLabel.startsWith(year)?year+' — '+rawLabel:rawLabel;
+    const div=document.createElement('div');
+    div.className='proc-item';
+    const cb=document.createElement('input');
+    cb.type='checkbox';
+    cb.checked=true;
+    cb.id='proc-cb-'+i;
+    cb.dataset.year=item.year||'';
+    cb.dataset.label=displayLabel;
+    cb.dataset.url=item.url||'';
+    const a=document.createElement('a');
+    a.href=item.url||'#';
+    a.target='_blank';
+    a.textContent=displayLabel;
+    div.appendChild(cb);
+    div.appendChild(a);
+    list.appendChild(div);
+  });
+  list.style.display='';
+  document.getElementById('proc-list-header').style.display='flex';
 }
 
 async function loadProceedingsUrls(name, type){
-  const sel=document.getElementById('f-access_url-select');
-  sel.style.display='none';
-  sel.innerHTML='<option value="">— select year —</option>';
+  const list=document.getElementById('proc-list');
+  list.innerHTML='';
+  list.style.display='none';
   if(!name)return;
   try{
     const r=await fetch('/venues/proceedings?name='+encodeURIComponent(name)+'&type='+encodeURIComponent(type));
-    const list=await r.json();
-    if(!list||!list.length)return;
-    list.forEach(item=>{
-      const opt=document.createElement('option');
-      opt.value=item.url;
-      opt.textContent=item.label||(item.year?String(item.year):item.url);
-      sel.appendChild(opt);
-    });
-    sel.style.display='';
+    const items=await r.json();
+    buildProcList(items);
   }catch(e){}
 }
 
-function toggleAllYears(checked){
-  document.getElementById('f-year_start').disabled=checked;
-  document.getElementById('f-year_end').disabled=checked;
-  if(checked){
-    document.getElementById('f-year_start').value='';
-    document.getElementById('f-year_end').value='';
-  }
+function toggleAllProc(){
+  const cbs=[...document.querySelectorAll('#proc-list .proc-item input[type=checkbox]')];
+  const allChecked=cbs.every(cb=>cb.checked);
+  cbs.forEach(cb=>cb.checked=!allChecked);
+}
+
+function applyYearsSince(val){
+  const since=parseInt(val);
+  document.querySelectorAll('#proc-list .proc-item input[type=checkbox]').forEach(cb=>{
+    const y=cb.dataset.year?parseInt(cb.dataset.year):null;
+    cb.checked=isNaN(since)||!val?true:(y!==null&&y>=since);
+  });
 }
 
 async function doPrefill(){
@@ -176,28 +186,13 @@ function populate(d){
   set('f-publisher',d.publisher||'');
   set('f-access_url',d.access_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
-  const allYears=!!d.all_years;
-  document.getElementById('f-all_years').checked=allYears;
-  toggleAllYears(allYears);
-  if(!allYears){
-    set('f-year_start',d.year_start||'');
-    set('f-year_end',d.year_end||'');
-  }
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
   (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
 
-  // Populate per-year URL dropdown if IEEE proceedings URLs were returned
+  // Populate per-year proceedings checkbox list if IEEE proceedings URLs were returned
   if(d.ieee_proceedings_urls&&d.ieee_proceedings_urls.length){
-    const sel=document.getElementById('f-access_url-select');
-    sel.innerHTML='<option value="">— select year —</option>';
-    d.ieee_proceedings_urls.forEach(item=>{
-      const opt=document.createElement('option');
-      opt.value=item.url;
-      opt.textContent=item.label||(item.year?String(item.year):item.url);
-      sel.appendChild(opt);
-    });
-    sel.style.display='';
+    buildProcList(d.ieee_proceedings_urls);
   } else if((d.publisher||'').toLowerCase().includes('ieee')){
     const name=document.getElementById('prefill-name').value.trim()||d.long_name||d.short_name||'';
     loadProceedingsUrls(name, d.type||'conference');
@@ -218,13 +213,17 @@ function addSourceRow(name='',url='',notes=''){
 function esc(s){return String(s).replace(/"/g,'&quot;');}
 
 function getForm(){
-  const allYears=document.getElementById('f-all_years').checked;
-  const yearStart=document.getElementById('f-year_start').value;
-  const yearEnd=document.getElementById('f-year_end').value;
   const sources=[...document.querySelectorAll('#sources-body tr')].map(tr=>{
     const inputs=tr.querySelectorAll('input');
     return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:inputs[2].value.trim()};
   }).filter(s=>s.name||s.url);
+  const procYears=[...document.querySelectorAll('#proc-list .proc-item input[type=checkbox]')]
+    .filter(cb=>cb.checked)
+    .map(cb=>({
+      year:cb.dataset.year?parseInt(cb.dataset.year):null,
+      label:cb.dataset.label||'',
+      url:cb.dataset.url||'',
+    }));
   return{
     short_name:document.getElementById('f-short_name').value.trim(),
     long_name:document.getElementById('f-long_name').value.trim(),
@@ -232,11 +231,9 @@ function getForm(){
     publisher:document.getElementById('f-publisher').value.trim(),
     access_url:document.getElementById('f-access_url').value.trim(),
     open_access:document.getElementById('f-open_access').checked,
-    all_years:allYears,
-    year_start:(!allYears&&yearStart)?parseInt(yearStart):null,
-    year_end:(!allYears&&yearEnd)?parseInt(yearEnd):null,
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
+    proceedings_years:procYears,
   };
 }
 
@@ -255,15 +252,13 @@ async function doSave(){
 }
 
 function clearForm(){
-  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes','f-year_start','f-year_end'].forEach(id=>set(id,''));
+  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes','f-years-since'].forEach(id=>set(id,''));
   document.getElementById('f-type').value='';
   document.getElementById('f-open_access').checked=false;
-  document.getElementById('f-all_years').checked=true;
-  toggleAllYears(true);
-  const sel=document.getElementById('f-access_url-select');
-  sel.innerHTML='<option value="">— select year —</option>';
-  sel.style.display='none';
-  document.getElementById('url-open').style.display='none';
+  const procList=document.getElementById('proc-list');
+  procList.innerHTML='';
+  procList.style.display='none';
+  document.getElementById('proc-list-header').style.display='none';
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');
 }
@@ -292,10 +287,6 @@ async function loadChips(){
     });
   }catch(e){}
 }
-
-// Default to all years
-document.getElementById('f-all_years').checked=true;
-toggleAllYears(true);
 
 loadChips();
 </script>

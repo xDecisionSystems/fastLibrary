@@ -64,6 +64,12 @@ class DownloadSource(BaseModel):
     notes: str = ""
 
 
+class ProceedingsYear(BaseModel):
+    year: Optional[int] = None
+    label: str = ""
+    url: str = ""
+
+
 class VenueRecord(BaseModel):
     short_name: str = Field(min_length=1)
     long_name: str = ""
@@ -74,5 +80,6 @@ class VenueRecord(BaseModel):
     all_years: bool = True
     year_start: Optional[int] = None
     year_end: Optional[int] = None
+    proceedings_years: list[ProceedingsYear] = Field(default_factory=list)
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)
