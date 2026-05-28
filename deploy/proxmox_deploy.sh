@@ -523,8 +523,47 @@ echo ""
 read -rp "Install Tailscale on VMID ${VMID}? [Y/n] " INSTALL_TAILSCALE
 INSTALL_TAILSCALE="${INSTALL_TAILSCALE:-y}"
 if [[ "${INSTALL_TAILSCALE,,}" == "y" ]]; then
-  log "Installing Tailscale on VMID ${VMID} ..."
-  ssh_run "$PROXMOX_HOST" \
-    "bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/tools/addon/add-tailscale-lxc.sh)\" -- ${VMID}"
-  log "Tailscale install complete."
+  log "Configuring LXC ${VMID} for Tailscale (TUN device access) ..."
+  CTID_CONFIG_PATH="/etc/pve/lxc/${VMID}.conf"
+  ssh_run "$PROXMOX_HOST" "
+    grep -q 'lxc.cgroup2.devices.allow: c 10:200 rwm' '${CTID_CONFIG_PATH}' || \
+      echo 'lxc.cgroup2.devices.allow: c 10:200 rwm' >> '${CTID_CONFIG_PATH}'
+    grep -q 'lxc.mount.entry: /dev/net/tun' '${CTID_CONFIG_PATH}' || \
+      echo 'lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file' >> '${CTID_CONFIG_PATH}'
+  "
+
+  log "Installing Tailscale inside LXC ${VMID} ..."
+  lxc_exec "$VMID" "
+    export DEBIAN_FRONTEND=noninteractive
+    . /etc/os-release
+    mkdir -p /usr/share/keyrings
+    curl -fsSL \"https://pkgs.tailscale.com/stable/\${ID}/\${VERSION_CODENAME}.noarmor.gpg\" \
+      | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+    echo \"deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] \
+      https://pkgs.tailscale.com/stable/\${ID} \${VERSION_CODENAME} main\" \
+      > /etc/apt/sources.list.d/tailscale.list
+    apt-get update -qq
+    apt-get install -y -qq tailscale
+  "
+
+  log "Tagging LXC ${VMID} with 'tailscale' ..."
+  ssh_run "$PROXMOX_HOST" "
+    TAGS=\$(awk -F': ' '/^tags:/ {print \$2}' '${CTID_CONFIG_PATH}')
+    TAGS=\"\${TAGS:+\$TAGS; }tailscale\"
+    pct set ${VMID} -tags \"\$TAGS\"
+  "
+
+  log "Tailscale installed. Rebooting LXC ${VMID} ..."
+  ssh_run "$PROXMOX_HOST" "pct reboot ${VMID}"
+  log "Waiting for LXC to come back up ..."
+  ssh_run "$PROXMOX_HOST" "sleep 10"
+  lxc_exec "$VMID" "
+    for i in \$(seq 1 15); do
+      curl -sf http://127.0.0.1:${API_PORT}/health > /dev/null 2>&1 && exit 0
+      sleep 2
+    done
+    echo 'WARNING: paper-library did not respond after reboot — check manually'
+  "
+  log "LXC back online."
+  log "Run 'tailscale up' inside the container to activate Tailscale."
 fi
