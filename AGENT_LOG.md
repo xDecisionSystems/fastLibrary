@@ -6,6 +6,25 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — improve submission deadline prefill and rename label
+
+**Action:** Sharpened the `due_date_month` LLM prompt rule to instruct the model to use the next upcoming submission deadline month, falling back to the most recently known one. Renamed the "Due Date" label to "Submission Deadline" in `addconf.html` and all three listing pages.
+
+**Files changed:**
+- `services/venues.py` — updated `due_date_month` prompt rule with next-upcoming/fallback instruction
+- `api/static/addconf.html` — form label "Due Date" → "Submission Deadline"
+- `api/static/conf.html` — table header "Due Date" → "Submission Deadline"
+- `api/static/venues.html` — table header "Due Date" → "Submission Deadline"
+- `api/static/journals.html` — table header "Due Date" → "Submission Deadline"
+- `VERSION.md` — bumped to `paper-library-v0.1.43`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** No new fields needed — `due_date_month` already stores a month name. The prompt change is sufficient to guide the LLM toward the most actionable deadline value. Journals show the column as `—` since the rule explicitly excludes them.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — remove dead model fields and fix chip XSS in add pages
 
 **Action:** Removed `ProceedingsYear` model class and `all_years`, `year_start`, `year_end`, `proceedings_years` fields from `VenueRecord` — all remnants of the removed proceedings URL feature. Removed `proceedings_years: []` from `getForm()` in both `addconf.html` and `addjournal.html`. Fixed an XSS risk in both pages' chip lists where `v.short_name` and `v.slug` were interpolated directly into `innerHTML`; replaced with DOM API (`textContent`, element construction).

@@ -14,7 +14,7 @@ Rules:
 - long_name: full official name
 - type: "conference" or "journal"
 - publisher: publishing organization (e.g. IEEE, ACM, Springer)
-- due_date_month: conference submission deadline month name (January..December), or "" if unknown/not applicable
+- due_date_month: month name (January..December) of the paper/abstract submission deadline. Use the next upcoming deadline if known; otherwise use the most recently known deadline month. Leave "" if unknown or not applicable (e.g. journals).
 - access_url: main conference or journal home page URL; leave "" if not certain — do not guess
 - open_access: true or false
 - notes: any brief relevant note, else ""
