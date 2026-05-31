@@ -18,7 +18,7 @@ Rules:
 - website_url: most recent official conference or journal home page URL (e.g. https://icra2025.ieee.org); leave "" if not certain — do not guess
 - proceedings_url: publisher's proceedings page URL where papers are archived (e.g. IEEE Xplore, ACM DL, Springer LNCS page for this venue); leave "" if not certain — do not guess
 - open_access: true or false
-- notes: any brief relevant note, else ""
+- notes: brief description of the conference or journal scope and focus area, else ""
 - download_sources: array of {name, url, notes} objects for bulk download sources (e.g. IEEE Xplore, ACM DL), or []
 
 Respond ONLY with valid JSON. No markdown fences, no explanation."""

@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — rename Notes to Description and update prefill prompt
+
+**Action:** Relabeled the Notes field in addconf.html to "Description" with a placeholder guiding the user to enter a brief scope/focus description. Updated the LLM prefill prompt so the `notes` field is filled with a description rather than a generic note.
+
+**Files changed:**
+- `api/static/addconf.html` — label and placeholder updated
+- `services/venues.py` — `notes` prompt rule updated
+- `VERSION.md` — bumped to `paper-library-v0.1.46`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The underlying field key stays `notes` to avoid a model/API change; only the UI label and prompt guidance change.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — repurpose download sources as per-year proceedings in addconf
 
 **Action:** Relabeled the Download Sources table in addconf.html as "Per-Year Proceedings" with a clarifying note that it is only needed when individual years have separate URLs (the top-level Proceedings URL covers all years otherwise). Changed the Name column header and placeholder from "e.g. IEEE Xplore" to "e.g. 2024". The underlying `download_sources` field and data model are unchanged.
