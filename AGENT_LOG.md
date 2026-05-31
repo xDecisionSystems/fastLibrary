@@ -6,6 +6,32 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — add download strategy system with inheritance and management UI
+
+**Action:** Implemented a JSON-based strategy system for conference paper download workflows. Each strategy is stored as a `strategies/<slug>.json` file. Strategies can inherit from a parent via `extends` and override individual steps by `id`. A resolved endpoint merges the full inheritance chain before returning. Added `Strategy` and `StrategyStep` Pydantic models, a full CRUD API at `/api/strategies`, a `strategy` field on `VenueRecord`, and two new pages: `/strategies` (list + create) and `/strategies/{slug}` (edit with Human Readable, JSON Editor, and Resolved View tabs). Seeded `_default.json` and `ieee_xplore.json` as starter strategies.
+
+**Files changed:**
+- `strategies/_default.json` — base strategy (fetch, DOI resolve, citations, upsert)
+- `strategies/ieee_xplore.json` — extends _default, overrides fetch step for IEEE Xplore
+- `strategies/.gitkeep` — tracks directory in git
+- `services/models.py` — added `StrategyStep`, `Strategy` models; added `strategy` field to `VenueRecord`
+- `config/settings.py` — added `STRATEGIES_DIR` path constant
+- `api/routes/strategies.py` — new router with CRUD + `/resolved` endpoint; merge-by-id inheritance logic
+- `api/main.py` — registered strategies router; added `/strategies` and `/strategies/{slug}` page routes
+- `api/routes/venues.py` — added `strategy` to list payload
+- `api/static/strategies.html` — strategy list and create page
+- `api/static/strategy.html` — three-tab detail/edit page (human readable, JSON editor, resolved view)
+- `api/static/venue.html` — strategy selector dropdown with link to strategy page
+- `api/static/conf.html`, `venues.html`, `journals.html`, `addconf.html`, `addjournal.html` — Strategies nav link added
+- `VERSION.md` — bumped to `paper-library-v0.1.60`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Steps merged by `id` (descendant overrides ancestor with same id; new ids appended). `_default` cannot be deleted. Strategy row hidden on journal edit pages. `strategies/` files are committed to git so strategies are version-controlled alongside code.
+
+**Open items:** The `update.sh` deploy script should `chown paperuser:paperuser /opt/paper-library/strategies` on existing deployments if the directory needs write access (strategies are read-only at runtime currently — writes come through the API running as paperuser, which owns the checkout).
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — fix typo in default SEARCHER_API_BASE_URL
 
 **Action:** Corrected "seracher" → "searcher" in the default `SEARCHER_API_BASE_URL` value in `config/settings.py` and `.env.example`. The typo would cause all Get Papers requests to fail silently unless the env var was explicitly set.

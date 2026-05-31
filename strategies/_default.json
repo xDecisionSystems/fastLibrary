@@ -1,0 +1,52 @@
+{
+  "slug": "_default",
+  "name": "Default Download Strategy",
+  "description": "Base strategy inherited by all conferences unless overridden. Covers standard paper fetch, DOI resolution, and citation lookup via the searcher API.",
+  "extends": null,
+  "steps": [
+    {
+      "id": "fetch_papers",
+      "name": "Fetch Papers",
+      "type": "searcher_endpoint",
+      "description": "Call the searcher API to retrieve paper metadata for the conference year.",
+      "config": {
+        "endpoint": "/api/fetch",
+        "method": "POST",
+        "notes": "POST body includes conference slug, year, and download_sources. Response is a list of paper objects."
+      }
+    },
+    {
+      "id": "resolve_doi",
+      "name": "Resolve DOIs",
+      "type": "doi_lookup",
+      "description": "For each paper returned, verify and normalise the DOI using the CrossRef API.",
+      "config": {
+        "source": "crossref",
+        "base_url": "https://api.crossref.org/works/",
+        "notes": "Skip papers that already have a validated DOI in the database."
+      }
+    },
+    {
+      "id": "fetch_citations",
+      "name": "Fetch Citation Count",
+      "type": "searcher_endpoint",
+      "description": "Retrieve citation counts for each paper from the searcher citation endpoint.",
+      "config": {
+        "endpoint": "/api/citations",
+        "method": "POST",
+        "notes": "Requires a valid DOI. Results are stored in paper metadata."
+      }
+    },
+    {
+      "id": "upsert_papers",
+      "name": "Upsert to Library",
+      "type": "bulk_upsert",
+      "description": "Bulk-upsert all processed papers into the paper library database.",
+      "config": {
+        "overwrite_missing_fields": false,
+        "overwrite_duplicate_doi": true,
+        "notes": "Existing records are updated only for fields returned by the searcher; existing fields not in the response are preserved."
+      }
+    }
+  ]
+}

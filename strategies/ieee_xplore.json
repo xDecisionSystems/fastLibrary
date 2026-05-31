@@ -1,0 +1,19 @@
+{
+  "slug": "ieee_xplore",
+  "name": "IEEE Xplore Strategy",
+  "description": "Strategy for IEEE conferences whose proceedings are hosted on IEEE Xplore. Inherits standard steps from _default and overrides the fetch step to use the IEEE-specific endpoint.",
+  "extends": "_default",
+  "steps": [
+    {
+      "id": "fetch_papers",
+      "name": "Fetch Papers (IEEE Xplore)",
+      "type": "searcher_endpoint",
+      "description": "Call the searcher IEEE Xplore fetch endpoint. Uses the conference publication number from proceedings_url.",
+      "config": {
+        "endpoint": "/api/fetch/ieee",
+        "method": "POST",
+        "notes": "Requires IEEE_XPLORE_API_KEY to be configured. The searcher extracts the publication number from proceedings_url."
+      }
+    }
+  ]
+}

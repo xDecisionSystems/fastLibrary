@@ -48,6 +48,7 @@
   <a href="/addconf">+ Add Conference</a>
   <a href="/addjournal">+ Add Journal</a>
   <a href="/tags">Tags</a>
+  <a href="/strategies">Strategies</a>
 </nav>
 <div class="card">
   <h1 id="page-title">Venue</h1>
@@ -90,6 +91,14 @@
       <input id="f-tags" type="text" placeholder="e.g. robotics; autonomous systems">
       <div id="tag-suggestions" class="tag-suggestions"></div>
       <span style="font-size:.75rem;color:#aaa">Separate tags with semicolons. Click suggestions to toggle.</span>
+    </div>
+  </div>
+
+  <div class="row" id="strategy-row">
+    <label>Download Strategy</label>
+    <div style="flex:1;display:flex;gap:8px;align-items:center">
+      <select id="f-strategy" style="flex:1" onchange="updateStrategyLink()"></select>
+      <a id="strategy-link" href="/strategies/_default" target="_blank" style="font-size:.8rem;white-space:nowrap">View strategy</a>
     </div>
   </div>
 
@@ -165,6 +174,31 @@ function getSelectedTags(){
 
 document.getElementById('page-slug').textContent=slug;
 
+async function loadStrategySelector(selected='_default'){
+  const sel=document.getElementById('f-strategy');
+  try{
+    const r=await fetch('/api/strategies');
+    const strategies=await r.json();
+    sel.innerHTML='';
+    strategies.forEach(s=>{
+      const opt=document.createElement('option');
+      opt.value=s.slug;
+      opt.textContent=s.name||s.slug;
+      if(s.slug===selected)opt.selected=true;
+      sel.appendChild(opt);
+    });
+  }catch(e){
+    sel.innerHTML=`<option value="_default">_default</option>`;
+  }
+  updateStrategyLink();
+}
+
+function updateStrategyLink(){
+  const sel=document.getElementById('f-strategy');
+  const link=document.getElementById('strategy-link');
+  if(sel.value)link.href='/strategies/'+encodeURIComponent(sel.value);
+}
+
 async function loadVenue(){
   setStatus('Loading…','');
   try{
@@ -187,12 +221,14 @@ function populate(d){
   set('f-proceedings_url',d.proceedings_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
   loadTagSuggestions(d.tags||[]);
+  loadStrategySelector(d.strategy||'_default');
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
   (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
 
   const isConf=d.type==='conference';
   document.getElementById('due-date-row').style.display=isConf?'':'none';
+  document.getElementById('strategy-row').style.display=isConf?'':'none';
   const papersLink=document.getElementById('getpapers-link');
   papersLink.style.display=isConf?'':'none';
   papersLink.href='/getpapers/'+encodeURIComponent(slug);
@@ -226,6 +262,7 @@ function getForm(){
     proceedings_url:document.getElementById('f-proceedings_url').value.trim(),
     open_access:document.getElementById('f-open_access').checked,
     tags:getSelectedTags(),
+    strategy:document.getElementById('f-strategy').value||'_default',
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
   };

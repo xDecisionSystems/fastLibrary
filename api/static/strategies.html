@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strategies — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.4rem;margin-bottom:6px}
+  .subtitle{font-size:.85rem;color:#666;margin-bottom:20px}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  nav a.active{font-weight:600;color:#333}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px}
+  .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-danger{background:#cc2222;color:#fff}
+  .btn-danger:hover{background:#a01a1a}
+  .btn-secondary{background:#e0e0e0;color:#333}
+  .btn-secondary:hover{background:#c8c8c8}
+  .card{background:#fff;border-radius:8px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow:hidden;margin-bottom:24px}
+  table{width:100%;border-collapse:collapse;font-size:.875rem}
+  th{text-align:left;padding:10px 14px;background:#f0f0f0;border-bottom:1px solid #ddd;white-space:nowrap}
+  td{padding:9px 14px;border-bottom:1px solid #eee;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#fafafa}
+  .actions{display:flex;gap:6px}
+  .badge-default{display:inline-block;padding:1px 8px;border-radius:8px;font-size:.72rem;background:#e8f0fe;color:#0052a3;margin-left:6px}
+  #empty{display:none;padding:32px;text-align:center;color:#888;font-size:.9rem}
+  .new-card{background:#fff;border-radius:8px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.1);max-width:480px}
+  .new-card h2{font-size:1rem;margin-bottom:14px}
+  .row{display:flex;gap:10px;margin-bottom:10px;align-items:center}
+  .row label{flex:0 0 110px;font-size:.875rem;color:#555}
+  .row input,.row select{flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  #status{margin-top:10px;font-size:.85rem;color:green;min-height:18px}
+  #status.err{color:#cc0000}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All Venues</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/tags">Tags</a>
+  <a href="/strategies" class="active">Strategies</a>
+</nav>
+<h1>Download Strategies</h1>
+<p class="subtitle">Strategies define the steps used to download and process papers for a conference. Each strategy can inherit from a parent and override individual steps.</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Slug</th>
+        <th>Name</th>
+        <th>Inherits From</th>
+        <th>Steps</th>
+        <th>Description</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="empty">No strategies found.</div>
+</div>
+
+<div class="new-card">
+  <h2>New Strategy</h2>
+  <div class="row"><label>Slug *</label><input id="n-slug" type="text" placeholder="e.g. acm_dl"></div>
+  <div class="row"><label>Name</label><input id="n-name" type="text" placeholder="e.g. ACM Digital Library"></div>
+  <div class="row">
+    <label>Inherits from</label>
+    <select id="n-extends"></select>
+  </div>
+  <div class="row"><label>Description</label><input id="n-desc" type="text" placeholder="One-line description"></div>
+  <button class="btn btn-primary" onclick="doCreate()">Create Strategy</button>
+  <div id="status"></div>
+</div>
+
+<script>
+let strategies=[];
+
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+
+async function load(){
+  try{
+    const r=await fetch('/api/strategies');
+    strategies=await r.json();
+    render();
+    populateExtendsSelector();
+  }catch(e){document.getElementById('empty').textContent='Failed to load strategies.';document.getElementById('empty').style.display='';}
+}
+
+function render(){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  document.getElementById('empty').style.display=strategies.length?'none':'';
+  strategies.forEach(s=>{
+    const isDefault=s.slug==='_default';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><strong>${esc(s.slug)}</strong>${isDefault?'<span class="badge-default">base</span>':''}</td>
+      <td>${esc(s.name||'—')}</td>
+      <td>${esc(s.extends||'—')}</td>
+      <td style="text-align:center">${s.step_count||0}</td>
+      <td style="max-width:300px;color:#555;font-size:.82rem">${esc(s.description||'—')}</td>
+      <td class="actions">
+        <a href="/strategies/${esc(s.slug)}" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">Edit</a>
+        ${isDefault?'':`<button class="btn btn-danger" style="padding:4px 10px;font-size:.78rem" onclick="doDelete('${esc(s.slug)}')">Delete</button>`}
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function populateExtendsSelector(){
+  const sel=document.getElementById('n-extends');
+  sel.innerHTML='<option value="">(none)</option>';
+  strategies.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.slug;
+    opt.textContent=s.slug+(s.name?` — ${s.name}`:'');
+    if(s.slug==='_default')opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+async function doCreate(){
+  const slug=document.getElementById('n-slug').value.trim();
+  if(!slug){setStatus('Slug is required','err');return;}
+  const body={
+    slug,
+    name:document.getElementById('n-name').value.trim(),
+    description:document.getElementById('n-desc').value.trim(),
+    extends:document.getElementById('n-extends').value||null,
+    steps:[],
+  };
+  try{
+    const r=await fetch('/api/strategies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){setStatus(d.detail||JSON.stringify(d),'err');return;}
+    window.location.href='/strategies/'+encodeURIComponent(d.slug);
+  }catch(e){setStatus('Request failed: '+e.message,'err');}
+}
+
+async function doDelete(slug){
+  if(!confirm('Delete strategy "'+slug+'"?'))return;
+  try{
+    const r=await fetch('/api/strategies/'+encodeURIComponent(slug),{method:'DELETE'});
+    if(!r.ok){const d=await r.json();setStatus(d.detail||'Delete failed','err');return;}
+    await load();
+    setStatus('','');
+  }catch(e){setStatus('Request failed: '+e.message,'err');}
+}
+
+function setStatus(msg,cls){
+  const el=document.getElementById('status');
+  el.textContent=msg;
+  el.className=cls||'';
+}
+
+load();
+</script>
+</body>
+</html>

@@ -338,6 +338,7 @@ async def list_venues():
                 "proceedings_url": d.get("proceedings_url", ""),
                 "open_access": d.get("open_access", False),
                 "tags": _sanitize_tags(d.get("tags", [])),
+                "strategy": d.get("strategy", "_default"),
             })
         except Exception:
             continue

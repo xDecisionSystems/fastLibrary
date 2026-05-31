@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.routes import health as health_router
 from api.routes import papers as papers_router
+from api.routes import strategies as strategies_router
 from api.routes import venues as venues_router
 from services import mongo
 
@@ -29,6 +30,7 @@ app = FastAPI(
 app.include_router(health_router.router)
 app.include_router(papers_router.router, prefix="/papers")
 app.include_router(venues_router.router, prefix="/api/venues")
+app.include_router(strategies_router.router, prefix="/api/strategies")
 
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
@@ -71,6 +73,16 @@ async def page_venue(slug: str):
 @app.get("/getpapers/{slug}", include_in_schema=False)
 async def page_getpapers(slug: str):
     return FileResponse(_STATIC_DIR / "getpapers.html")
+
+
+@app.get("/strategies", include_in_schema=False)
+async def page_strategies():
+    return FileResponse(_STATIC_DIR / "strategies.html")
+
+
+@app.get("/strategies/{slug}", include_in_schema=False)
+async def page_strategy(slug: str):
+    return FileResponse(_STATIC_DIR / "strategy.html")
 
 
 @app.get("/", include_in_schema=False)

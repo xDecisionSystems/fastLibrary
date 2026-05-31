@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strategy — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.4rem;margin-bottom:4px}
+  .slug{font-size:.8rem;color:#888;margin-bottom:20px}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-secondary{background:#e0e0e0;color:#333}
+  .btn-secondary:hover{background:#c8c8c8}
+  .btn-danger{background:#cc2222;color:#fff;padding:4px 10px;font-size:.8rem}
+  .btn-danger:hover{background:#a01a1a}
+  .btn-sm{padding:3px 10px;font-size:.78rem}
+  .tabs{display:flex;gap:0;margin-bottom:0;border-bottom:2px solid #ddd}
+  .tab{padding:8px 18px;cursor:pointer;font-size:.875rem;color:#555;border-bottom:2px solid transparent;margin-bottom:-2px}
+  .tab.active{color:#0066cc;border-bottom-color:#0066cc;font-weight:600}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+  .card{background:#fff;border-radius:0 8px 8px 8px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:20px}
+  .row{display:flex;gap:12px;margin-bottom:12px;align-items:flex-start}
+  .row label{flex:0 0 130px;padding-top:6px;font-size:.875rem;color:#555}
+  .row input,.row select,.row textarea{flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .row textarea{resize:vertical;min-height:56px}
+  .section-title{font-size:.95rem;font-weight:600;margin:16px 0 8px;display:flex;align-items:center;justify-content:space-between}
+  .step-card{background:#f8f9ff;border:1px solid #dde3f5;border-radius:6px;padding:14px;margin-bottom:10px}
+  .step-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .step-id{font-size:.75rem;font-family:monospace;background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px}
+  .step-type{font-size:.75rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;border-radius:4px}
+  .step-row{display:flex;gap:8px;margin-bottom:6px;align-items:flex-start}
+  .step-row label{flex:0 0 90px;font-size:.8rem;color:#666;padding-top:4px}
+  .step-row input,.step-row textarea,.step-row select{flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:.82rem}
+  .step-row textarea{min-height:44px;resize:vertical}
+  .inherited-badge{font-size:.72rem;background:#fef9c3;color:#854d0e;border:1px solid #fde68a;padding:1px 7px;border-radius:4px;margin-left:6px}
+  #status{margin-top:12px;font-size:.85rem;color:green;min-height:18px}
+  #status.err{color:#cc0000}
+  .json-editor{width:100%;min-height:420px;font-family:ui-monospace,monospace;font-size:.82rem;padding:12px;border:1px solid #ccc;border-radius:4px;resize:vertical;background:#fafafa}
+  .json-editor.err{border-color:#cc2222;background:#fff5f5}
+  .resolved-step{border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:10px;background:#fff}
+  .resolved-step h3{font-size:.875rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .resolved-step p{font-size:.82rem;color:#555;margin-bottom:6px}
+  .resolved-step pre{font-size:.76rem;background:#f4f4f4;border-radius:4px;padding:8px;overflow-x:auto;white-space:pre-wrap}
+  .chain-info{font-size:.8rem;color:#666;margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .chain-slug{background:#e8f0fe;color:#0052a3;padding:2px 8px;border-radius:8px;font-size:.75rem}
+  .chain-arrow{color:#aaa}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All Venues</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/strategies">Strategies</a>
+</nav>
+<h1 id="page-title">Strategy</h1>
+<div class="slug" id="page-slug"></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('readable')">Human Readable</div>
+  <div class="tab" onclick="switchTab('json')">JSON Editor</div>
+  <div class="tab" onclick="switchTab('resolved')">Resolved View</div>
+</div>
+
+<!-- ── Human Readable ─────────────────────────────────────────── -->
+<div id="panel-readable" class="tab-panel active">
+  <div class="card">
+    <div class="row"><label>Name</label><input id="f-name" type="text" placeholder="Display name"></div>
+    <div class="row">
+      <label>Inherits from</label>
+      <div style="flex:1;display:flex;gap:8px;align-items:center">
+        <select id="f-extends" style="flex:1"></select>
+        <a id="parent-link" href="#" target="_blank" style="font-size:.8rem;white-space:nowrap">View parent</a>
+      </div>
+    </div>
+    <div class="row"><label>Description</label><textarea id="f-description"></textarea></div>
+
+    <div class="section-title">
+      Steps
+      <button class="btn btn-secondary btn-sm" onclick="addStep()">+ Add Step</button>
+    </div>
+    <div id="steps-container"></div>
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="doSave()">Save Strategy</button>
+      <button class="btn btn-secondary" onclick="loadStrategy()">Revert</button>
+    </div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<!-- ── JSON Editor ────────────────────────────────────────────── -->
+<div id="panel-json" class="tab-panel">
+  <div class="card">
+    <p style="font-size:.82rem;color:#666;margin-bottom:10px">Edit the raw JSON. Click Save to write changes.</p>
+    <textarea id="json-editor" class="json-editor" spellcheck="false"></textarea>
+    <div style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="doSaveJson()">Save JSON</button>
+      <button class="btn btn-secondary" onclick="loadStrategy()">Revert</button>
+    </div>
+    <div id="json-status" style="margin-top:10px;font-size:.85rem;min-height:18px"></div>
+  </div>
+</div>
+
+<!-- ── Resolved View ──────────────────────────────────────────── -->
+<div id="panel-resolved" class="tab-panel">
+  <div class="card">
+    <p style="font-size:.82rem;color:#666;margin-bottom:12px">Shows the fully merged strategy after applying the inheritance chain. Read-only.</p>
+    <div id="resolved-container"></div>
+  </div>
+</div>
+
+<script>
+const slug=location.pathname.split('/').filter(Boolean).pop();
+let currentDoc={};
+
+document.getElementById('page-slug').textContent=slug;
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const names=['readable','json','resolved'];
+    t.classList.toggle('active',names[i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name==='json')syncJsonFromForm();
+  if(name==='resolved')loadResolved();
+}
+
+// ── Strategy selectors ───────────────────────────────────────
+async function loadExtendsSelector(selected){
+  const sel=document.getElementById('f-extends');
+  try{
+    const r=await fetch('/api/strategies');
+    const strategies=await r.json();
+    sel.innerHTML='<option value="">(none)</option>';
+    strategies.forEach(s=>{
+      if(s.slug===slug)return;
+      const opt=document.createElement('option');
+      opt.value=s.slug;
+      opt.textContent=s.slug+(s.name?` — ${s.name}`:'');
+      if(s.slug===selected)opt.selected=true;
+      sel.appendChild(opt);
+    });
+  }catch(e){
+    sel.innerHTML='<option value="_default">_default</option>';
+  }
+  updateParentLink();
+}
+
+function updateParentLink(){
+  const val=document.getElementById('f-extends').value;
+  const link=document.getElementById('parent-link');
+  link.style.display=val?'':'none';
+  if(val)link.href='/strategies/'+encodeURIComponent(val);
+}
+
+// ── Step rendering ───────────────────────────────────────────
+function renderSteps(steps){
+  const container=document.getElementById('steps-container');
+  container.innerHTML='';
+  (steps||[]).forEach((step,i)=>container.appendChild(buildStepCard(step,i)));
+}
+
+function buildStepCard(step,i){
+  const div=document.createElement('div');
+  div.className='step-card';
+  div.dataset.index=i;
+  div.innerHTML=`
+    <div class="step-header">
+      <span class="step-id">${esc(step.id||'')}</span>
+      <span class="step-type">${esc(step.type||'')}</span>
+      <button class="btn btn-danger" style="margin-left:auto" onclick="removeStep(${i})">✕ Remove</button>
+    </div>
+    <div class="step-row"><label>Step ID</label><input type="text" data-field="id" value="${esc(step.id||'')}" placeholder="unique_id"></div>
+    <div class="step-row"><label>Name</label><input type="text" data-field="name" value="${esc(step.name||'')}" placeholder="Human name"></div>
+    <div class="step-row"><label>Type</label>
+      <select data-field="type">
+        <option value="searcher_endpoint"${step.type==='searcher_endpoint'?' selected':''}>searcher_endpoint</option>
+        <option value="doi_lookup"${step.type==='doi_lookup'?' selected':''}>doi_lookup</option>
+        <option value="bulk_upsert"${step.type==='bulk_upsert'?' selected':''}>bulk_upsert</option>
+        <option value="custom"${step.type==='custom'?' selected':''}>custom</option>
+      </select>
+    </div>
+    <div class="step-row"><label>Description</label><textarea data-field="description">${esc(step.description||'')}</textarea></div>
+    <div class="step-row"><label>Config (JSON)</label><textarea data-field="config" style="font-family:monospace;font-size:.78rem">${esc(JSON.stringify(step.config||{},null,2))}</textarea></div>
+  `;
+  div.querySelectorAll('[data-field]').forEach(el=>{
+    el.addEventListener('input',()=>updateStepHeader(div));
+  });
+  return div;
+}
+
+function updateStepHeader(card){
+  const idVal=card.querySelector('[data-field="id"]').value;
+  const typeVal=card.querySelector('[data-field="type"]').value;
+  card.querySelector('.step-id').textContent=idVal||'';
+  card.querySelector('.step-type').textContent=typeVal||'';
+}
+
+function addStep(){
+  const container=document.getElementById('steps-container');
+  const i=container.children.length;
+  const step={id:'step_'+i,name:'',type:'searcher_endpoint',description:'',config:{}};
+  container.appendChild(buildStepCard(step,i));
+}
+
+function removeStep(i){
+  const card=document.querySelector(`.step-card[data-index="${i}"]`);
+  if(card)card.remove();
+  // Re-index remaining cards
+  document.querySelectorAll('.step-card').forEach((c,idx)=>c.dataset.index=idx);
+}
+
+function collectSteps(){
+  return [...document.querySelectorAll('.step-card')].map(card=>{
+    let config={};
+    try{config=JSON.parse(card.querySelector('[data-field="config"]').value||'{}');}catch(e){}
+    return{
+      id:card.querySelector('[data-field="id"]').value.trim(),
+      name:card.querySelector('[data-field="name"]').value.trim(),
+      type:card.querySelector('[data-field="type"]').value,
+      description:card.querySelector('[data-field="description"]').value.trim(),
+      config,
+    };
+  }).filter(s=>s.id);
+}
+
+// ── Load / Save ──────────────────────────────────────────────
+async function loadStrategy(){
+  setStatus('Loading…','');
+  try{
+    const r=await fetch('/api/strategies/'+encodeURIComponent(slug));
+    if(!r.ok){setStatus('Strategy not found.','err');return;}
+    currentDoc=await r.json();
+    document.getElementById('page-title').textContent=currentDoc.name||slug;
+    document.getElementById('f-name').value=currentDoc.name||'';
+    document.getElementById('f-description').value=currentDoc.description||'';
+    await loadExtendsSelector(currentDoc.extends||'');
+    renderSteps(currentDoc.steps||[]);
+    syncJsonFromForm();
+    setStatus('','');
+  }catch(e){setStatus('Failed to load: '+e.message,'err');}
+}
+
+function getFormDoc(){
+  return{
+    slug,
+    name:document.getElementById('f-name').value.trim(),
+    description:document.getElementById('f-description').value.trim(),
+    extends:document.getElementById('f-extends').value||null,
+    steps:collectSteps(),
+  };
+}
+
+function syncJsonFromForm(){
+  document.getElementById('json-editor').value=JSON.stringify(getFormDoc(),null,2);
+  document.getElementById('json-editor').classList.remove('err');
+}
+
+async function doSave(){
+  const body=getFormDoc();
+  setStatus('Saving…','');
+  try{
+    const r=await fetch('/api/strategies/'+encodeURIComponent(slug),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){setStatus(d.detail||JSON.stringify(d),'err');return;}
+    document.getElementById('page-title').textContent=d.name||slug;
+    currentDoc=d;
+    syncJsonFromForm();
+    setStatus('Saved.','');
+  }catch(e){setStatus('Request failed: '+e.message,'err');}
+}
+
+async function doSaveJson(){
+  const editor=document.getElementById('json-editor');
+  const statusEl=document.getElementById('json-status');
+  let body;
+  try{
+    body=JSON.parse(editor.value);
+    editor.classList.remove('err');
+  }catch(e){
+    editor.classList.add('err');
+    statusEl.textContent='Invalid JSON: '+e.message;
+    statusEl.style.color='#cc0000';
+    return;
+  }
+  try{
+    const r=await fetch('/api/strategies/'+encodeURIComponent(slug),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){statusEl.textContent=d.detail||JSON.stringify(d);statusEl.style.color='#cc0000';return;}
+    currentDoc=d;
+    document.getElementById('page-title').textContent=d.name||slug;
+    statusEl.textContent='Saved.';
+    statusEl.style.color='green';
+    // Sync back to readable form
+    document.getElementById('f-name').value=d.name||'';
+    document.getElementById('f-description').value=d.description||'';
+    await loadExtendsSelector(d.extends||'');
+    renderSteps(d.steps||[]);
+  }catch(e){statusEl.textContent='Request failed: '+e.message;statusEl.style.color='#cc0000';}
+}
+
+// ── Resolved view ────────────────────────────────────────────
+async function loadResolved(){
+  const container=document.getElementById('resolved-container');
+  container.innerHTML='<p style="color:#888;font-size:.85rem">Loading resolved strategy…</p>';
+  try{
+    const r=await fetch('/api/strategies/'+encodeURIComponent(slug)+'/resolved');
+    const d=await r.json();
+    if(!r.ok){container.innerHTML=`<p style="color:#cc0000">${esc(d.detail||'Not found')}</p>`;return;}
+
+    const chain=d.extends_chain||[];
+    let html='';
+    if(chain.length){
+      html+=`<div class="chain-info"><span>Inherits:</span>`;
+      chain.forEach((s,i)=>{
+        html+=`<a class="chain-slug" href="/strategies/${encodeURIComponent(s)}">${esc(s)}</a>`;
+        if(i<chain.length-1)html+=`<span class="chain-arrow">→</span>`;
+      });
+      html+=`<span class="chain-arrow">→</span><span class="chain-slug" style="background:#dbeafe">${esc(slug)}</span></div>`;
+    }
+    html+=`<p style="font-size:.85rem;color:#444;margin-bottom:14px">${esc(d.description||'')}</p>`;
+    (d.steps||[]).forEach(step=>{
+      const configJson=JSON.stringify(step.config||{},null,2);
+      html+=`<div class="resolved-step">
+        <h3>
+          <span class="step-id" style="font-size:.78rem;font-family:monospace;background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px">${esc(step.id)}</span>
+          <span style="font-weight:400;color:#444">${esc(step.name||'')}</span>
+          <span class="step-type" style="font-size:.72rem;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;border-radius:4px">${esc(step.type||'')}</span>
+        </h3>
+        <p>${esc(step.description||'')}</p>
+        ${configJson!=='{}'?`<pre>${esc(configJson)}</pre>`:''}
+      </div>`;
+    });
+    container.innerHTML=html||'<p style="color:#888">No steps.</p>';
+  }catch(e){container.innerHTML=`<p style="color:#cc0000">Failed to load: ${esc(e.message)}</p>`;}
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+function setStatus(msg,cls){const el=document.getElementById('status');el.textContent=msg;el.className=cls||'';}
+
+document.getElementById('f-extends').addEventListener('change',updateParentLink);
+
+loadStrategy();
+</script>
+</body>
+</html>

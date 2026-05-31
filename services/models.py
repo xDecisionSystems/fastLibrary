@@ -80,6 +80,22 @@ _MONTH_NAMES = {
 }
 
 
+class StrategyStep(BaseModel):
+    id: str = Field(min_length=1)
+    name: str = ""
+    type: str = ""
+    description: str = ""
+    config: dict = Field(default_factory=dict)
+
+
+class Strategy(BaseModel):
+    slug: str = Field(min_length=1)
+    name: str = ""
+    description: str = ""
+    extends: Optional[str] = None
+    steps: list[StrategyStep] = Field(default_factory=list)
+
+
 class VenueRecord(BaseModel):
     short_name: str = Field(min_length=1)
     long_name: str = ""
@@ -90,6 +106,7 @@ class VenueRecord(BaseModel):
     proceedings_url: str = ""
     open_access: bool = False
     tags: list[str] = Field(default_factory=list)
+    strategy: str = "_default"
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)
 

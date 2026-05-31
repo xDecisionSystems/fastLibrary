@@ -8,6 +8,7 @@ load_dotenv()
 
 PDF_DIR = Path("pdf")
 VENUES_DIR = Path("venues")
+STRATEGIES_DIR = Path("strategies")
 
 
 @dataclass(frozen=True)
