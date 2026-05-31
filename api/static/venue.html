@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Venue — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.4rem;margin-bottom:4px}
+  .slug{font-size:.8rem;color:#888;margin-bottom:20px}
+  .card{background:#fff;border-radius:8px;padding:24px;max-width:720px;margin:0 auto;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .row{display:flex;gap:12px;margin-bottom:14px}
+  .row label{flex:0 0 160px;padding-top:6px;font-size:.875rem;color:#555}
+  .row input,.row select,.row textarea{flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .row textarea{resize:vertical;min-height:60px}
+  .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-secondary{background:#e0e0e0;color:#333}
+  .btn-secondary:hover{background:#c8c8c8}
+  .btn-danger{background:#cc2222;color:#fff;padding:4px 10px;font-size:.8rem}
+  .btn-danger:hover{background:#a01a1a}
+  .section-title{font-size:.95rem;font-weight:600;margin:16px 0 8px}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{text-align:left;padding:4px 8px;background:#f0f0f0;border:1px solid #ddd}
+  td{padding:4px 6px;border:1px solid #ddd}
+  td input{width:100%;padding:3px 6px;border:1px solid #bbb;border-radius:3px;font-size:.83rem}
+  #status{margin-top:12px;font-size:.85rem;color:green;min-height:20px}
+  #status.err{color:#cc0000}
+  .checkbox-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+  .checkbox-row label{font-size:.875rem;color:#555;flex:0 0 160px}
+  nav{margin:0 auto 16px auto;max-width:720px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/addconf">+ Add Conference</a>
+  <a href="/addjournal">+ Add Journal</a>
+</nav>
+<div class="card">
+  <h1 id="page-title">Venue</h1>
+  <div class="slug" id="page-slug"></div>
+
+  <div class="row"><label>Short name *</label><input id="f-short_name" type="text"></div>
+  <div class="row"><label>Long name</label><input id="f-long_name" type="text"></div>
+  <div class="row">
+    <label>Type</label>
+    <select id="f-type">
+      <option value="">— select —</option>
+      <option value="conference">Conference</option>
+      <option value="journal">Journal</option>
+    </select>
+  </div>
+  <div class="row"><label>Publisher</label><input id="f-publisher" type="text"></div>
+
+  <div class="row" id="due-date-row">
+    <label>Submission Deadline</label>
+    <select id="f-due_date_month">
+      <option value="">— select month —</option>
+      <option>January</option><option>February</option><option>March</option>
+      <option>April</option><option>May</option><option>June</option>
+      <option>July</option><option>August</option><option>September</option>
+      <option>October</option><option>November</option><option>December</option>
+    </select>
+  </div>
+
+  <div class="row"><label>Conference Website</label><input id="f-website_url" type="url" placeholder="https://"></div>
+  <div class="row"><label>Proceedings URL</label><input id="f-proceedings_url" type="url" placeholder="https://"></div>
+
+  <div class="checkbox-row">
+    <label>Open access</label>
+    <input id="f-open_access" type="checkbox">
+  </div>
+
+  <div class="row"><label>Description</label><textarea id="f-notes" placeholder="Brief description of the conference scope and focus area."></textarea></div>
+
+  <div class="section-title">Per-Year Proceedings</div>
+  <p style="font-size:.8rem;color:#888;margin-bottom:8px">Use when individual years have separate URLs. Leave empty if the Proceedings URL above covers all years.</p>
+  <table id="sources-table">
+    <thead><tr><th>Year</th><th>URL</th><th>Notes</th><th></th></tr></thead>
+    <tbody id="sources-body"></tbody>
+  </table>
+  <button class="btn btn-secondary" style="margin-top:8px" onclick="addSourceRow()">+ Add Year</button>
+
+  <div style="margin-top:20px;display:flex;gap:10px">
+    <button class="btn btn-primary" onclick="doSave()">Save Changes</button>
+    <button class="btn btn-secondary" onclick="loadVenue()">Revert</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+const slug=location.pathname.split('/').filter(Boolean).pop();
+
+document.getElementById('page-slug').textContent=slug;
+
+async function loadVenue(){
+  setStatus('Loading…','');
+  try{
+    const r=await fetch('/api/venues/'+slug);
+    if(!r.ok){setStatus('Venue not found.','err');return;}
+    const d=await r.json();
+    populate(d);
+    setStatus('','');
+  }catch(e){setStatus('Failed to load: '+e.message,'err');}
+}
+
+function populate(d){
+  document.getElementById('page-title').textContent=d.short_name||slug;
+  set('f-short_name',d.short_name||'');
+  set('f-long_name',d.long_name||'');
+  document.getElementById('f-type').value=d.type||'';
+  set('f-publisher',d.publisher||'');
+  set('f-due_date_month',d.due_date_month||'');
+  set('f-website_url',d.website_url||d.access_url||'');
+  set('f-proceedings_url',d.proceedings_url||'');
+  document.getElementById('f-open_access').checked=!!d.open_access;
+  set('f-notes',d.notes||'');
+  document.getElementById('sources-body').innerHTML='';
+  (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
+
+  const isConf=d.type==='conference';
+  document.getElementById('due-date-row').style.display=isConf?'':'none';
+}
+
+function set(id,val){document.getElementById(id).value=val==null?'':val;}
+
+function addSourceRow(name='',url='',notes=''){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input type="text" value="${esc(name)}" placeholder="e.g. 2024"></td>
+    <td><input type="url" value="${esc(url)}" placeholder="https://"></td>
+    <td><input type="text" value="${esc(notes)}"></td>
+    <td><button class="btn btn-danger" onclick="this.closest('tr').remove()">✕</button></td>`;
+  document.getElementById('sources-body').appendChild(tr);
+}
+
+function esc(s){return String(s).replace(/"/g,'&quot;');}
+
+function getForm(){
+  const sources=[...document.querySelectorAll('#sources-body tr')].map(tr=>{
+    const inputs=tr.querySelectorAll('input');
+    return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:inputs[2].value.trim()};
+  }).filter(s=>s.name||s.url);
+  return{
+    short_name:document.getElementById('f-short_name').value.trim(),
+    long_name:document.getElementById('f-long_name').value.trim(),
+    type:document.getElementById('f-type').value,
+    publisher:document.getElementById('f-publisher').value.trim(),
+    due_date_month:document.getElementById('f-due_date_month').value,
+    website_url:document.getElementById('f-website_url').value.trim(),
+    proceedings_url:document.getElementById('f-proceedings_url').value.trim(),
+    open_access:document.getElementById('f-open_access').checked,
+    notes:document.getElementById('f-notes').value.trim(),
+    download_sources:sources,
+  };
+}
+
+async function doSave(){
+  const body=getForm();
+  if(!body.short_name){setStatus('short_name is required','err');return;}
+  setStatus('Saving…','');
+  try{
+    const r=await fetch('/api/venues/'+slug,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){setStatus(d.detail||JSON.stringify(d),'err');return;}
+    document.getElementById('page-title').textContent=d.short_name||slug;
+    setStatus('Saved.','');
+  }catch(e){setStatus('Request failed: '+e.message,'err');}
+}
+
+function setStatus(msg,cls){
+  const el=document.getElementById('status');
+  el.textContent=msg;
+  el.className=cls||'';
+}
+
+loadVenue();
+</script>
+</body>
+</html>

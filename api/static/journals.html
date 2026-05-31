@@ -90,7 +90,7 @@ function renderTable(){
       <td>${v.website_url?`<a href="${esc(v.website_url)}" target="_blank">Website</a>`:'—'}</td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
-        <a href="/api/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
+        <a href="/venues/${v.slug}" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
         <button class="btn btn-danger" style="padding:4px 10px;font-size:.78rem" onclick="doDelete('${v.slug}')">Delete</button>
       </td>`;
     tbody.appendChild(tr);

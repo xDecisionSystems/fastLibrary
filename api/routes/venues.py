@@ -72,6 +72,20 @@ async def get_venue(slug: str):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@router.put("/{slug}")
+async def update_venue(slug: str, venue: VenueRecord):
+    path = _venue_path(slug)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Venue '{slug}' not found")
+    try:
+        data = venue.model_dump()
+        data["slug"] = slug
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return data
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.delete("/{slug}", status_code=200)
 async def delete_venue(slug: str):
     path = _venue_path(slug)
