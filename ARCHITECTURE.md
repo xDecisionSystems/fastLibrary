@@ -144,7 +144,7 @@ All configuration is loaded from `.env` at import time via `python-dotenv`.
 | `API_HOST`  | No       | `0.0.0.0`                  | uvicorn bind address                |
 | `API_PORT`  | No       | `8000`                     | uvicorn bind port                   |
 | `PDF_DIR`   | No       | `/opt/paper-library/pdfs`  | Local PDF storage root              |
-| `SEARCHER_API_BASE_URL` | No | `https://seracher.xds-lab.com` | External searcher API URL used by conference paper download actions |
+| `SEARCHER_API_BASE_URL` | No | `https://searcher.xds-lab.com` | External searcher API base URL used by conference paper search/download actions |
 
 Missing `MONGO_URI` or `MONGO_DB` raises `RuntimeError` at startup (fail fast).
 
@@ -200,11 +200,13 @@ Venue API endpoints:
 |--------|-----------------------|----------------------|----------|
 | GET    | /api/venues/prefill   | `name` + optional repeated `existing_tags` query params | LLM-prefilled venue payload or `{"error": ...}` |
 | POST   | /api/venues           | `VenueRecord`        | Saved venue JSON plus `slug` |
-| GET    | /api/venues           | —                    | Venue summaries (`slug`, `short_name`, `long_name`, `type`, `publisher`, `due_date_month`, `website_url`, `proceedings_url`, `open_access`, `tags`) |
+| GET    | /api/venues           | —                    | Venue summaries (`slug`, `short_name`, `long_name`, `type`, `publisher`, `due_date_month`, `website_url`, `proceedings_url`, `open_access`, `tags`, `strategy`) |
 | GET    | /api/venues/{slug}    | —                    | Full venue JSON or 404 |
 | PUT    | /api/venues/{slug}    | `VenueRecord`        | Updated venue JSON or 404 |
 | DELETE | /api/venues/{slug}    | —                    | `{"deleted": "<slug>"}` or 404 |
-| GET    | /api/venues/{slug}/paper-downloads | —         | Conference year rows with `downloaded_papers`, `last_attempted_at`, and status |
+| GET    | /api/venues/{slug}/paper-downloads | —         | Conference year rows with `found_papers` (nullable), `downloaded_papers`, `last_attempted_at`, and status |
+| GET    | /api/venues/{slug}/paper-search/{year} | —     | Strategy-driven preview search (no writes) |
+| POST   | /api/venues/{slug}/paper-search/{year} | —    | Strategy-driven search plus cache upsert for Found counts |
 | POST   | /api/venues/{slug}/paper-downloads/{year} | —    | Triggers external searcher fetch + paper bulk-upsert + per-year download status update |
 | GET    | /api/venues/tags      | —                    | Tag list (`string[]`) |
 | POST   | /api/venues/tags      | `{"tag": "<name>"}`  | Updated tag list (`string[]`) |
@@ -213,6 +215,18 @@ Venue API endpoints:
 `VenueRecord` includes `due_date_month` for conference submission cycles. Allowed values are calendar month names (`January` through `December`) or empty string when unknown / not applicable (for example, journals).
 Tags are normalized/tracked in `venues/_tags.json`. Tags cannot be empty, cannot exceed 64 characters, and cannot contain `/` or `\`. Deleting a tag removes it from the tag registry and from every saved venue record.
 Conference download attempt metadata is stored in each venue JSON under `paper_downloads` keyed by year, including `downloaded_papers`, `last_attempted_at`, `last_status`, and `last_error`.
+Conference search cache metadata is stored in MongoDB collection `paper_search_cache` keyed by `(slug, year)` and surfaced as `found_papers`; `null` means no cached search has been run for that year.
+
+Strategy API endpoints:
+
+| Method | Path                         | Body / Params | Response |
+|--------|------------------------------|---------------|----------|
+| GET    | /api/strategies              | —             | Strategy summaries |
+| POST   | /api/strategies              | `Strategy`    | Creates strategy JSON |
+| GET    | /api/strategies/{slug}       | —             | Raw strategy JSON |
+| PUT    | /api/strategies/{slug}       | `Strategy`    | Updates strategy JSON |
+| GET    | /api/strategies/{slug}/resolved | —          | Inheritance-resolved strategy |
+| DELETE | /api/strategies/{slug}       | —             | Deletes strategy (409 if any venue still references it) |
 
 Venue UI routes:
 

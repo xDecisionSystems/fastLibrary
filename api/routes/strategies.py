@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from config.settings import STRATEGIES_DIR
+from config.settings import STRATEGIES_DIR, VENUES_DIR
 from services.models import Strategy
 
 router = APIRouter(tags=["strategies"])
@@ -29,6 +29,24 @@ def _load_strategy_doc(slug: str) -> dict:
         return raw if isinstance(raw, dict) else {}
     except Exception:
         return {}
+
+
+def _venues_using_strategy(slug: str) -> list[str]:
+    VENUES_DIR.mkdir(parents=True, exist_ok=True)
+    dependents: list[str] = []
+    for venue_file in sorted(VENUES_DIR.glob("*.json")):
+        if venue_file.name == "_tags.json":
+            continue
+        try:
+            raw = json.loads(venue_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("strategy") or "_default") != slug:
+            continue
+        dependents.append(str(raw.get("slug") or venue_file.stem))
+    return dependents
 
 
 def _resolve_strategy(slug: str) -> dict:
@@ -144,5 +162,12 @@ async def delete_strategy(slug: str):
     path = _strategy_path(slug)
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Strategy '{slug}' not found")
+    in_use_by = _venues_using_strategy(slug)
+    if in_use_by:
+        joined = ", ".join(sorted(in_use_by))
+        raise HTTPException(
+            status_code=409,
+            detail=f"Strategy '{slug}' is in use by venue(s): {joined}",
+        )
     path.unlink()
     return {"deleted": slug}

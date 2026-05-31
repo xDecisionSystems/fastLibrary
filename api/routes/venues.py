@@ -4,11 +4,12 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import error as urllib_error
+from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 
 from fastapi import APIRouter, HTTPException, Query
 
-from config.settings import VENUES_DIR, settings
+from config.settings import STRATEGIES_DIR, VENUES_DIR, settings
 from services import mongo
 from services.models import Paper, VenueRecord
 from services.venues import prefill_venue
@@ -19,6 +20,7 @@ _INVALID_TAG_CHARS = {"/", "\\"}
 _MAX_TAG_LENGTH = 64
 _DOWNLOAD_YEAR_MIN = 1900
 _INTERNAL_VENUE_FIELDS = ("paper_downloads",)
+_MAX_EXTENDS_DEPTH = 10
 
 
 def _tags_path() -> Path:
@@ -182,17 +184,215 @@ def _build_searcher_payload(venue_doc: dict, year: int) -> dict:
     }
 
 
-def _post_to_searcher(payload: dict) -> dict | list:
-    base_url = settings.searcher_api_base_url.strip()
-    if not base_url:
-        raise RuntimeError("SEARCHER_API_BASE_URL is not configured")
+def _strategy_path(slug: str) -> Path:
+    return STRATEGIES_DIR / f"{slug}.json"
 
-    body = json.dumps(payload).encode("utf-8")
+
+def _load_strategy_doc(slug: str) -> dict:
+    path = _strategy_path(slug)
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _resolve_strategy(slug: str) -> dict:
+    chain: list[dict] = []
+    seen: set[str] = set()
+    current = slug
+    while current and len(chain) < _MAX_EXTENDS_DEPTH:
+        if current in seen:
+            break
+        seen.add(current)
+        doc = _load_strategy_doc(current)
+        if not doc:
+            break
+        chain.append(doc)
+        current = str(doc.get("extends") or "").strip()
+
+    if not chain:
+        return {}
+
+    merged_steps: dict[str, dict] = {}
+    for doc in reversed(chain):
+        steps = doc.get("steps", [])
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if isinstance(step, dict) and step.get("id"):
+                merged_steps[str(step["id"])] = step
+
+    leaf = chain[0]
+    return {
+        "slug": leaf.get("slug", slug),
+        "name": leaf.get("name", ""),
+        "description": leaf.get("description", ""),
+        "extends": leaf.get("extends"),
+        "steps": list(merged_steps.values()),
+    }
+
+
+def _find_download_source_for_year(venue_doc: dict, year: int) -> dict:
+    for source in venue_doc.get("download_sources", []):
+        if not isinstance(source, dict):
+            continue
+        source_year = _parse_year(source.get("name"))
+        if source_year == year:
+            return source
+    return {}
+
+
+def _lookup_template_value(token: str, payload: dict, venue_doc: dict, year: int) -> object:
+    if token == "year":
+        return year
+    if token == "conference":
+        return payload.get("conference", {})
+    if token.startswith("conference."):
+        current: object = payload.get("conference", {})
+        for part in token.removeprefix("conference.").split("."):
+            if isinstance(current, dict):
+                current = current.get(part)
+            else:
+                current = None
+            if current is None:
+                raise RuntimeError(f"strategy placeholder '{token}' could not be resolved")
+        return current
+
+    source_match = re.fullmatch(r"download_sources\[year\]\.([a-zA-Z_][a-zA-Z0-9_]*)", token)
+    if source_match:
+        source = _find_download_source_for_year(venue_doc, year)
+        key = source_match.group(1)
+        value = source.get(key)
+        if value is None or str(value).strip() == "":
+            raise RuntimeError(
+                f"strategy placeholder '{token}' could not be resolved for year {year}"
+            )
+        return value
+
+    raise RuntimeError(f"unsupported strategy placeholder '{token}'")
+
+
+def _resolve_template(value: object, payload: dict, venue_doc: dict, year: int) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): _resolve_template(item, payload, venue_doc, year)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_resolve_template(item, payload, venue_doc, year) for item in value]
+    if not isinstance(value, str):
+        return value
+
+    exact_match = re.fullmatch(r"\{([^{}]+)\}", value)
+    if exact_match:
+        return _lookup_template_value(exact_match.group(1), payload, venue_doc, year)
+
+    def _sub(match: re.Match[str]) -> str:
+        token = match.group(1)
+        return str(_lookup_template_value(token, payload, venue_doc, year))
+
+    return re.sub(r"\{([^{}]+)\}", _sub, value)
+
+
+def _build_searcher_url(base_url: str, endpoint: str) -> str:
+    base = base_url.strip()
+    if not base:
+        return ""
+    tail = endpoint.strip()
+    if not tail:
+        return base
+    if re.match(r"^https?://", tail, flags=re.IGNORECASE):
+        return tail
+    normalized_tail = tail.lstrip("/")
+    if base.rstrip("/").endswith(normalized_tail):
+        return base.rstrip("/")
+    return f"{base.rstrip('/')}/{normalized_tail}"
+
+
+def _build_searcher_request(venue_doc: dict, year: int) -> dict:
+    payload = _build_searcher_payload(venue_doc, year)
+    strategy_slug = str(venue_doc.get("strategy") or "_default").strip() or "_default"
+    resolved_strategy = _resolve_strategy(strategy_slug)
+    if not resolved_strategy and strategy_slug != "_default":
+        raise RuntimeError(f"strategy '{strategy_slug}' was not found")
+
+    fetch_step = None
+    for step in resolved_strategy.get("steps", []):
+        if isinstance(step, dict) and step.get("id") == "fetch_papers":
+            fetch_step = step
+            break
+
+    fetch_config: dict = {}
+    if fetch_step and isinstance(fetch_step.get("config"), dict):
+        fetch_config = fetch_step["config"]
+
+    method = str(fetch_config.get("method") or "POST").strip().upper()
+    if method not in {"GET", "POST"}:
+        raise RuntimeError(f"unsupported strategy fetch method '{method}'")
+    base_url = str(fetch_config.get("base_url") or settings.searcher_api_base_url).strip()
+    endpoint = str(fetch_config.get("endpoint") or "").strip()
+    request_url = _build_searcher_url(base_url, endpoint)
+    if not request_url:
+        raise RuntimeError("searcher request URL is empty; check SEARCHER_API_BASE_URL or strategy")
+
+    if method == "GET":
+        raw_params = fetch_config.get("params")
+        if raw_params is None and fetch_config.get("url_source") == "download_sources":
+            raw_params = {"url": "{download_sources[year].url}"}
+        params = raw_params if isinstance(raw_params, dict) else {}
+        resolved_params = _resolve_template(params, payload, venue_doc, year)
+        if not isinstance(resolved_params, dict):
+            raise RuntimeError("strategy GET params must resolve to an object")
+        return {"method": "GET", "url": request_url, "params": resolved_params}
+
+    raw_body = fetch_config.get("body")
+    if raw_body is None:
+        request_body: object = payload
+    else:
+        request_body = _resolve_template(raw_body, payload, venue_doc, year)
+    return {"method": "POST", "url": request_url, "body": request_body}
+
+
+def _call_searcher(request_spec: dict) -> dict | list:
+    method = str(request_spec.get("method") or "POST").upper()
+    url = str(request_spec.get("url") or "").strip()
+    if not url:
+        raise RuntimeError("searcher request URL is missing")
+
+    headers = {"Accept": "application/json"}
+    request_data = None
+    request_url = url
+    if method == "GET":
+        params = request_spec.get("params", {})
+        query_items: list[tuple[str, str]] = []
+        if isinstance(params, dict):
+            for key, raw_value in params.items():
+                if raw_value is None:
+                    continue
+                if isinstance(raw_value, list):
+                    for item in raw_value:
+                        if item is not None:
+                            query_items.append((str(key), str(item)))
+                else:
+                    query_items.append((str(key), str(raw_value)))
+        if query_items:
+            query = urllib_parse.urlencode(query_items, doseq=True)
+            joiner = "&" if "?" in request_url else "?"
+            request_url = f"{request_url}{joiner}{query}"
+    elif method == "POST":
+        headers["Content-Type"] = "application/json"
+        request_data = json.dumps(request_spec.get("body", {})).encode("utf-8")
+    else:
+        raise RuntimeError(f"unsupported HTTP method '{method}'")
+
     req = urllib_request.Request(
-        url=base_url,
-        data=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        method="POST",
+        url=request_url,
+        data=request_data,
+        headers=headers,
+        method=method,
     )
     try:
         with urllib_request.urlopen(req, timeout=120) as resp:
@@ -213,6 +413,12 @@ def _post_to_searcher(payload: dict) -> dict | list:
     if isinstance(parsed, (dict, list)):
         return parsed
     raise RuntimeError("searcher API returned unsupported JSON payload")
+
+
+async def _search_papers_for_venue(venue_doc: dict, year: int) -> tuple[dict | list, list[dict]]:
+    request_spec = _build_searcher_request(venue_doc, year)
+    searcher_response = await asyncio.to_thread(_call_searcher, request_spec)
+    return searcher_response, _extract_response_papers(searcher_response)
 
 
 def _extract_response_papers(response_payload: dict | list) -> list[dict]:
@@ -396,7 +602,7 @@ async def get_paper_downloads(slug: str):
                 "last_error": "",
             },
         )
-        rows.append({"year": year, "found_papers": cache_counts.get(year, 0), **row})
+        rows.append({"year": year, "found_papers": cache_counts.get(year), **row})
 
     return {
         "slug": slug,
@@ -424,9 +630,40 @@ async def search_papers_for_conference_year(slug: str, year: int):
         raise HTTPException(status_code=400, detail="paper search is only supported for conference venues")
 
     try:
-        payload = _build_searcher_payload(doc, parsed_year)
-        searcher_response = await asyncio.to_thread(_post_to_searcher, payload)
-        paper_candidates = _extract_response_papers(searcher_response)
+        _, paper_candidates = await _search_papers_for_venue(doc, parsed_year)
+        return {
+            "slug": slug,
+            "year": parsed_year,
+            "total": len(paper_candidates),
+            "papers": paper_candidates,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"failed to fetch papers from external searcher API: {exc}",
+        ) from exc
+
+
+@router.post("/{slug}/paper-search/{year}")
+async def search_and_cache_papers_for_conference_year(slug: str, year: int):
+    parsed_year = _parse_year(year)
+    if parsed_year is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"year must be between {_DOWNLOAD_YEAR_MIN} and next calendar year",
+        )
+
+    path = _venue_path(slug)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Venue '{slug}' not found")
+    doc = _load_venue_doc(path)
+    if doc.get("type") != "conference":
+        raise HTTPException(status_code=400, detail="paper search is only supported for conference venues")
+
+    try:
+        _, paper_candidates = await _search_papers_for_venue(doc, parsed_year)
         await mongo.upsert_search_cache(slug, parsed_year, paper_candidates)
         return {
             "slug": slug,
@@ -464,9 +701,7 @@ async def download_papers_for_conference_year(slug: str, year: int):
     year_key = str(parsed_year)
 
     try:
-        payload = _build_searcher_payload(doc, parsed_year)
-        searcher_response = await asyncio.to_thread(_post_to_searcher, payload)
-        paper_candidates = _extract_response_papers(searcher_response)
+        searcher_response, paper_candidates = await _search_papers_for_venue(doc, parsed_year)
         papers: list[Paper] = []
         for candidate in paper_candidates:
             paper = _to_paper_model(candidate, doc, parsed_year)

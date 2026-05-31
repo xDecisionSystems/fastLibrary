@@ -123,11 +123,12 @@ function render(){
     const tr=document.createElement('tr');
     const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':'');
     const statusLabel=r.last_status?r.last_status.toUpperCase():'—';
+    const foundLabel=Number.isFinite(r.found_papers)?String(r.found_papers):'—';
     const errorSuffix=r.last_error?`<div style="font-size:.74rem;color:#777">${esc(r.last_error)}</div>`:'';
     tr.id=`row-${r.year}`;
     tr.innerHTML=`
       <td class="mono">${r.year}</td>
-      <td id="found-${r.year}">${Number.isFinite(r.found_papers)&&r.found_papers>0?r.found_papers:'—'}</td>
+      <td id="found-${r.year}">${foundLabel}</td>
       <td>${Number.isFinite(r.downloaded_papers)?r.downloaded_papers:0}</td>
       <td>${esc(formatDate(r.last_attempted_at))}</td>
       <td><span class="${statusClass}">${statusLabel}</span>${errorSuffix}</td>
@@ -153,6 +154,7 @@ function upsertRow(year){
   }
   rows.push({
     year:numericYear,
+    found_papers:null,
     downloaded_papers:0,
     last_attempted_at:'',
     last_status:'',
@@ -198,7 +200,7 @@ async function load(){
     document.getElementById('subtitle').textContent=d.long_name||'Download papers by conference year.';
     rows=(d.years||[]).map((row)=>({
       year:Number(row.year),
-      found_papers:Number(row.found_papers||0),
+      found_papers:row.found_papers==null?null:Number(row.found_papers),
       downloaded_papers:Number(row.downloaded_papers||0),
       last_attempted_at:row.last_attempted_at||'',
       last_status:row.last_status||'',
@@ -225,7 +227,7 @@ async function searchYear(year){
   document.getElementById('modal-status').className='';
   document.getElementById('search-modal').classList.add('open');
   try{
-    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-search/${year}`);
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-search/${year}`,{method:'POST'});
     const d=await r.json();
     if(!r.ok){
       document.getElementById('modal-status').textContent=d.detail||'Search failed.';
@@ -233,10 +235,12 @@ async function searchYear(year){
       return;
     }
     const papers=d.papers||[];
-    const total=d.total||papers.length;
+    const total=Number.isFinite(Number(d.total))?Number(d.total):papers.length;
     document.getElementById('modal-status').textContent=`${total} paper(s) found. Results cached locally.`;
     const foundCell=document.getElementById(`found-${year}`);
-    if(foundCell)foundCell.textContent=total>0?total:'—';
+    if(foundCell)foundCell.textContent=String(total);
+    const row=rows.find((r)=>r.year===year);
+    if(row)row.found_papers=total;
     if(!papers.length){
       document.getElementById('modal-content').innerHTML='<p class="modal-empty">No papers returned by the searcher.</p>';
       return;

@@ -6,6 +6,38 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] codex-gpt-5 — wire strategy execution into paper search/download and fix Found semantics
+
+**Action:** Implemented strategy-driven search execution in venue paper search/download flows so fetch behavior now follows resolved strategy config (`method`, `endpoint`, `base_url`, and templated params/body). Split paper search into side-effect-free `GET /paper-search/{year}` (preview only) and cache-writing `POST /paper-search/{year}` used by the UI. Fixed Found-count semantics to distinguish unknown (`null` / `—`) from valid zero results (`0`). Added strategy delete protection that returns 409 if any venue still references the strategy. Updated architecture docs and bumped patch version.
+
+**Files changed:**
+- `api/routes/venues.py` — strategy resolution + templated request builder + GET/POST paper-search split + Found nullable semantics
+- `api/routes/strategies.py` — prevent deleting strategies still referenced by venue JSON records
+- `api/static/getpapers.html` — Search now uses POST cache endpoint; Found column correctly displays `0` vs `—`
+- `ARCHITECTURE.md` — updated searcher default URL, venue/search endpoint contracts, cache semantics, and strategy API docs
+- `VERSION.md` — bumped to `paper-library-v0.1.64`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Kept strategy placeholder support intentionally narrow and explicit (`{year}`, `{conference.*}`, `{download_sources[year].*}`) to avoid ambiguous runtime behavior while covering current ATRD/default strategy needs.
+
+**Open items:** If future strategies need richer templating (conditionals/transforms), move placeholder resolution into a dedicated, validated strategy runtime module with schema-level validation.
+
+---
+
+## [2026-05-31] codex-gpt-5 — review Claude strategy/search-cache changes and surface fixes
+
+**Action:** Reviewed the most recent Claude-authored changes called out in `AGENT_LOG.md` (strategy system, ATRD strategy, search preview/cache, and getpapers Found column), then performed a code-level regression/risk analysis across the touched backend and frontend files.
+
+**Files changed:**
+- `AGENT_LOG.md` — prepended this review handoff entry and archived older entries per policy
+- `history/2026-05.md` — appended AGENT_LOG entries older than the 10 most recent
+
+**Decisions:** Logged review findings without applying application-code edits, so implementation choices remain unchanged until fixes are approved.
+
+**Open items:** High-priority fix needed: wire strategy execution into paper search/download flow (current implementation still hardcodes POST + base URL and ignores venue strategy fetch-step config, so ATRD/GET strategies are not actually used).
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — add paper_search_cache and Found column on getpapers page
 
 **Action:** Added a `paper_search_cache` MongoDB collection to store search results per `(slug, year)` without touching the main `papers` collection. The search endpoint now saves results to this cache on every call. The paper-downloads endpoint reads cache counts and returns a `found_papers` field per year row. The getpapers UI gains a "Found" column that shows the cached count (populated on load and updated in-place immediately after a search completes).
@@ -162,50 +194,5 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 **Decisions:** Tags fetch failure is silently ignored so prefill still works when the tags file doesn't exist yet. Existing tags are sent as a comma-separated query param to keep the endpoint a simple GET.
 
 **Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — replace tag checkboxes with text input and top-10 suggestion chips
-
-**Action:** Replaced the checkbox-based tag picker in addconf.html, addjournal.html, and venue.html with a text input (semicolon-separated) plus clickable suggestion chips showing the top 10 known tags. Chips toggle their tag into/out of the text field and highlight blue when active.
-
-**Files changed:**
-- `api/static/addconf.html` — new tag input + suggestion chips UI
-- `api/static/addjournal.html` — same
-- `api/static/venue.html` — same
-- `VERSION.md` — bumped to `paper-library-v0.1.54`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** `parseTags` splits on `;` and trims whitespace; `serializeTags` joins with `"; "`. Chip state is re-evaluated on every toggle by re-reading the text field, so manual edits and chip clicks stay in sync.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] codex-gpt-5 — harden venue tag APIs and cascade tag deletion
-
-**Action:** Implemented the requested review fixes: robust tag validation/normalization, defensive `_tags.json` parsing, cascade removal of deleted tags from all saved venue files, and generic non-leaky 500 error messages for venue create/update writes.
-
-**Files changed:**
-- `api/routes/venues.py` — added tag normalization/validation helpers; sanitized tag reads/writes; cascaded tag delete across `venues/*.json`; replaced `detail=str(exc)` with generic write-failure messages
-- `ARCHITECTURE.md` — updated venue endpoint map (including tags + PUT), venue summary fields, and tag lifecycle constraints/cascade behavior
-- `VERSION.md` — bumped to `paper-library-v0.1.53`
-
-**Decisions:** Tag names are now constrained to non-empty, max 64 chars, and cannot contain `/` or `\` to keep delete semantics safe with path params. Existing malformed tag values in files are ignored/sanitized rather than causing endpoint failures.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] codex-gpt-5 — reviewed recent Claude venue/tag changes for regressions
-
-**Action:** Performed a code review of recent Claude-authored updates (venue tags system, new routes/pages, and listing/filter UI) and identified functional and robustness issues requiring fixes.
-
-**Files changed:**
-- `AGENT_LOG.md` — prepended this review handoff entry
-
-**Decisions:** Review-only pass; no application code edits were made in this step.
-
-**Open items:** Fixes are needed for tag lifecycle consistency and tag identifier validation (see review findings in assistant response).
 
 ---
