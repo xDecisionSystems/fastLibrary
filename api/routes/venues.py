@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from config.settings import VENUES_DIR
 from services.models import VenueRecord
-from services.venues import ieee_proceedings_urls, prefill_venue
+from services.venues import prefill_venue
 
 router = APIRouter(tags=["venues"])
 
@@ -23,10 +23,6 @@ def _venue_path(slug: str) -> Path:
 async def get_prefill(name: str):
     return prefill_venue(name)
 
-
-@router.get("/proceedings")
-async def get_proceedings(name: str, type: str = "conference"):
-    return ieee_proceedings_urls(name, type)
 
 
 @router.post("", status_code=201)

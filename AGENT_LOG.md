@@ -6,6 +6,62 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — serve venues/conferences/journals as webpages at clean URLs
+
+**Action:** Moved the venues JSON API from `/venues` to `/api/venues` so the browser-friendly paths could be claimed. `/venues` now serves `venues.html`, `/conferences` serves `conf.html`, `/journals` serves `journals.html`. Updated all `fetch()` calls, `href` attributes, and nav links across all four static HTML files.
+
+**Files changed:**
+- `api/main.py` — router prefix changed to `/api/venues`; page routes updated to `/venues`, `/conferences`, `/journals`
+- `api/static/venues.html` — nav links and fetch/delete calls updated to `/api/venues`
+- `api/static/conf.html` — nav links and fetch/delete calls updated
+- `api/static/journals.html` — nav links and fetch/delete calls updated
+- `api/static/addvenue.html` — fetch calls (prefill, save, list) updated to `/api/venues`
+- `VERSION.md` — bumped to `paper-library-v0.1.38`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** All venue CRUD/data endpoints live under `/api/venues/*`. The three page URLs (`/venues`, `/conferences`, `/journals`) are human-facing and return HTML. `/conf` is gone — the canonical path is `/conferences`.
+
+**Open items:** `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
+## [2026-05-31] claude-sonnet-4-6 — remove URL auto-lookup; user enters main page URL manually
+
+**Action:** Removed per-year proceedings URL discovery (OpenAlex and IEEE Xplore lookups) from the add-venue flow. The Access URL field is now a plain text input labeled "Main page URL" that the user fills in. Removed the proc-list checkbox UI, `buildProcList`, `loadProceedingsUrls`, `toggleAllProc`, `applyYearsSince`, and the years-since filter from `addvenue.html`. Removed the `GET /venues/proceedings` endpoint and its `ieee_proceedings_urls` import from `api/routes/venues.py`. Removed `openalex_proceedings_urls`, `ieee_proceedings_urls`, and `_ieee_fetch_articles` from `services/venues.py`. Removed `openalex_api_key` from `Settings` and `.env.example`.
+
+**Files changed:**
+- `api/static/addvenue.html` — stripped proc-list UI and all URL-lookup JS
+- `api/routes/venues.py` — removed `/proceedings` endpoint and `ieee_proceedings_urls` import
+- `services/venues.py` — removed `openalex_proceedings_urls`, `ieee_proceedings_urls`, `_ieee_fetch_articles`; removed proceedings enrichment from `prefill_venue`
+- `config/settings.py` — removed `openalex_api_key` field
+- `.env.example` — removed `OPENALEX_API_KEY`
+- `VERSION.md` — bumped to `paper-library-v0.1.37`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The proceedings URL search produced semantically wrong data (OpenAlex `/sources` returns one series-level record, not per-year links) and had a broken gate in `prefill_venue`. Simpler to let the user paste the URL they already know.
+
+**Open items:** `ieee_xplore_api_key` remains in Settings for future paper metadata ingestion. `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
+## [2026-05-28] claude-sonnet-4-6 — add OpenAlex as default proceedings source
+
+**Action:** Added `openalex_proceedings_urls()` using the OpenAlex `/sources` API. Works for any publisher (not just IEEE). Updated `ieee_proceedings_urls()` to try OpenAlex first and fall back to IEEE Xplore. Added `OPENALEX_API_KEY` to Settings, `.env.example`, and `.env.dev`. IEEE Xplore is preserved for future paper metadata ingestion.
+
+**Files changed:**
+- `services/venues.py` — `openalex_proceedings_urls()`; `ieee_proceedings_urls()` tries OpenAlex first
+- `config/settings.py` — added `openalex_api_key` field
+- `.env.example` — documented `OPENALEX_API_KEY`; updated IEEE note
+- `.env.dev` — added `OPENALEX_API_KEY`
+- `VERSION.md` — bumped to `paper-library-v0.1.36`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** OpenAlex URLs point to `homepage_url` when available, otherwise the OpenAlex source page (`https://openalex.org/<id>`). OpenAlex returns ~10 results for DASC (coverage gaps for older years); IEEE Xplore returns 30. For non-IEEE venues OpenAlex is the only option.
+
+**Open items:** IEEE Xplore will be used later for paper metadata ingestion. `ARCHITECTURE.md` still needs a venue endpoints section.
+
+---
+
 ## [2026-05-27] claude-sonnet-4-6 — fix proc-list not rendering: use display:block not display:''
 
 **Action:** `buildProcList` was setting `list.style.display=''` to show the list, which reverts to the CSS class default of `display:none`. Changed to `display:'block'` so the list is explicitly shown after items are appended.

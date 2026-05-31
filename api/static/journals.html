@@ -33,8 +33,8 @@
 </head>
 <body>
 <nav>
-  <a href="/venues/ui">All</a>
-  <a href="/conf">Conferences</a>
+  <a href="/venues">All</a>
+  <a href="/conferences">Conferences</a>
   <a href="/journals" class="active">Journals</a>
   <a href="/addvenue">+ Add Venue</a>
 </nav>
@@ -66,7 +66,7 @@ let venues=[];
 
 async function load(){
   try{
-    const r=await fetch('/venues');
+    const r=await fetch('/api/venues');
     const all=await r.json();
     venues=all.filter(v=>v.type==='journal');
     renderTable();
@@ -87,7 +87,7 @@ function renderTable(){
       <td>${esc(v.publisher||'—')}</td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
-        <a href="/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
+        <a href="/api/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
         <button class="btn btn-danger" style="padding:4px 10px;font-size:.78rem" onclick="doDelete('${v.slug}')">Delete</button>
       </td>`;
     tbody.appendChild(tr);
@@ -98,7 +98,7 @@ function esc(s){const d=document.createElement('div');d.textContent=String(s||''
 
 async function doDelete(slug){
   if(!confirm('Delete venue "'+slug+'"?'))return;
-  await fetch('/venues/'+slug,{method:'DELETE'});
+  await fetch('/api/venues/'+slug,{method:'DELETE'});
   await load();
 }
 

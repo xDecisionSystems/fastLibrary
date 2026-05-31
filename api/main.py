@@ -28,7 +28,7 @@ app = FastAPI(
 
 app.include_router(health_router.router)
 app.include_router(papers_router.router, prefix="/papers")
-app.include_router(venues_router.router, prefix="/venues")
+app.include_router(venues_router.router, prefix="/api/venues")
 
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
@@ -38,13 +38,13 @@ async def page_addvenue():
     return FileResponse(_STATIC_DIR / "addvenue.html")
 
 
-@app.get("/venues/ui", include_in_schema=False)
+@app.get("/venues", include_in_schema=False)
 async def page_venues():
     return FileResponse(_STATIC_DIR / "venues.html")
 
 
-@app.get("/conf", include_in_schema=False)
-async def page_conf():
+@app.get("/conferences", include_in_schema=False)
+async def page_conferences():
     return FileResponse(_STATIC_DIR / "conf.html")
 
 

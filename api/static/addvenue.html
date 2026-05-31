@@ -35,12 +35,6 @@
   #status.err{color:#cc0000}
   .checkbox-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
   .checkbox-row label{font-size:.875rem;color:#555;flex:0 0 160px}
-  .proc-list{max-height:220px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:6px 8px;background:#fafafa;display:none}
-  .proc-item{display:flex;align-items:flex-start;padding:4px 0;font-size:.83rem;border-bottom:1px solid #f0f0f0}
-  .proc-item:last-child{border-bottom:none}
-  .proc-item input[type=checkbox]{flex:0 0 18px;margin-top:3px;margin-right:8px}
-  .proc-item a{color:#0066cc;text-decoration:none;font-size:.83rem;line-height:1.4;flex:1}
-  .proc-item a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -63,25 +57,7 @@
     </select>
   </div>
   <div class="row"><label>Publisher</label><input id="f-publisher" type="text" placeholder="e.g. IEEE"></div>
-  <div class="row">
-    <label>Access URL</label>
-    <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-      <input id="f-access_url" type="url" placeholder="All-years / parent series URL">
-      <div id="proc-list-wrap">
-        <div id="proc-list-header" style="display:none;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
-          <span style="font-size:.8rem;color:#888">Per-year proceedings — check to save:</span>
-          <button class="btn btn-secondary" style="padding:2px 10px;font-size:.78rem" onclick="toggleAllProc()">Select / Deselect All</button>
-          <label style="font-size:.8rem;color:#888;display:flex;align-items:center;gap:4px">
-            Years since
-            <input id="f-years-since" type="number" min="1900" max="2100" placeholder="e.g. 2018"
-              style="width:80px;padding:2px 6px;border:1px solid #ccc;border-radius:4px;font-size:.8rem"
-              oninput="applyYearsSince(this.value)">
-          </label>
-        </div>
-        <div class="proc-list" id="proc-list"></div>
-      </div>
-    </div>
-  </div>
+  <div class="row"><label>Main page URL</label><input id="f-access_url" type="url" placeholder="https://"></div>
 
   <div class="checkbox-row">
     <label>Open access</label>
@@ -110,80 +86,19 @@
 </div>
 
 <script>
-function buildProcList(items){
-  const list=document.getElementById('proc-list');
-  list.innerHTML='';
-  if(!items||!items.length){list.style.display='none';document.getElementById('proc-list-header').style.display='none';return;}
-  items.forEach((item,i)=>{
-    const year=item.year?String(item.year):'';
-    const rawLabel=item.label||year||item.url;
-    const displayLabel=year&&!rawLabel.startsWith(year)?year+' — '+rawLabel:rawLabel;
-    const div=document.createElement('div');
-    div.className='proc-item';
-    const cb=document.createElement('input');
-    cb.type='checkbox';
-    cb.checked=true;
-    cb.id='proc-cb-'+i;
-    cb.dataset.year=item.year||'';
-    cb.dataset.label=displayLabel;
-    cb.dataset.url=item.url||'';
-    const a=document.createElement('a');
-    a.href=item.url||'#';
-    a.target='_blank';
-    a.textContent=displayLabel;
-    div.appendChild(cb);
-    div.appendChild(a);
-    list.appendChild(div);
-  });
-  list.style.display='block';
-  document.getElementById('proc-list-header').style.display='flex';
-}
-
-async function loadProceedingsUrls(name, type){
-  const list=document.getElementById('proc-list');
-  list.innerHTML='';
-  list.style.display='none';
-  if(!name)return;
-  setStatus('Looking up proceedings URLs…','');
-  try{
-    const r=await fetch('/venues/proceedings?name='+encodeURIComponent(name)+'&type='+encodeURIComponent(type));
-    const items=await r.json();
-    if(items&&items.length){
-      buildProcList(items);
-      setStatus('Prefilled — review and save.','');
-    }else{
-      setStatus('No per-year proceedings found (IEEE Xplore API key may not be configured).','err');
-    }
-  }catch(e){setStatus('Proceedings lookup failed: '+e.message,'err');}
-}
-
-function toggleAllProc(){
-  const cbs=[...document.querySelectorAll('#proc-list .proc-item input[type=checkbox]')];
-  const allChecked=cbs.every(cb=>cb.checked);
-  cbs.forEach(cb=>cb.checked=!allChecked);
-}
-
-function applyYearsSince(val){
-  const since=parseInt(val);
-  document.querySelectorAll('#proc-list .proc-item input[type=checkbox]').forEach(cb=>{
-    const y=cb.dataset.year?parseInt(cb.dataset.year):null;
-    cb.checked=isNaN(since)||!val?true:(y!==null&&y>=since);
-  });
-}
-
 async function doPrefill(){
   const name=document.getElementById('prefill-name').value.trim();
   if(!name)return;
   setStatus('Prefilling…','');
   try{
-    const r=await fetch('/venues/prefill?name='+encodeURIComponent(name));
+    const r=await fetch('/api/venues/prefill?name='+encodeURIComponent(name));
     const d=await r.json();
     if(d.error){setStatus(d.detail||d.error,'err');return;}
-    await populate(d);
+    populate(d);
   }catch(e){setStatus('Request failed: '+e.message,'err');}
 }
 
-async function populate(d){
+function populate(d){
   set('f-short_name',d.short_name||'');
   set('f-long_name',d.long_name||'');
   const typeSel=document.getElementById('f-type');
@@ -195,17 +110,7 @@ async function populate(d){
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
   (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
-
-  // Populate per-year proceedings checkbox list if IEEE proceedings URLs were returned
-  if(d.ieee_proceedings_urls&&d.ieee_proceedings_urls.length){
-    buildProcList(d.ieee_proceedings_urls);
-    setStatus('Prefilled — review and save.','');
-  } else if((d.publisher||'').toLowerCase().includes('ieee')){
-    const name=d.long_name||d.short_name||document.getElementById('prefill-name').value.trim()||'';
-    await loadProceedingsUrls(name, d.type||'conference');
-  } else {
-    setStatus('Prefilled — review and save.','');
-  }
+  setStatus('Prefilled — review and save.','');
 }
 
 function set(id,val){document.getElementById(id).value=val==null?'':val;}
@@ -226,13 +131,6 @@ function getForm(){
     const inputs=tr.querySelectorAll('input');
     return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:inputs[2].value.trim()};
   }).filter(s=>s.name||s.url);
-  const procYears=[...document.querySelectorAll('#proc-list .proc-item input[type=checkbox]')]
-    .filter(cb=>cb.checked)
-    .map(cb=>({
-      year:cb.dataset.year?parseInt(cb.dataset.year):null,
-      label:cb.dataset.label||'',
-      url:cb.dataset.url||'',
-    }));
   return{
     short_name:document.getElementById('f-short_name').value.trim(),
     long_name:document.getElementById('f-long_name').value.trim(),
@@ -242,7 +140,7 @@ function getForm(){
     open_access:document.getElementById('f-open_access').checked,
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
-    proceedings_years:procYears,
+    proceedings_years:[],
   };
 }
 
@@ -251,7 +149,7 @@ async function doSave(){
   if(!body.short_name){setStatus('short_name is required','err');return;}
   setStatus('Saving…','');
   try{
-    const r=await fetch('/venues',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const r=await fetch('/api/venues',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(!r.ok){setStatus((d.detail||JSON.stringify(d)),'err');return;}
     setStatus('Saved: '+d.slug,'');
@@ -261,13 +159,9 @@ async function doSave(){
 }
 
 function clearForm(){
-  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes','f-years-since'].forEach(id=>set(id,''));
+  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes'].forEach(id=>set(id,''));
   document.getElementById('f-type').value='';
   document.getElementById('f-open_access').checked=false;
-  const procList=document.getElementById('proc-list');
-  procList.innerHTML='';
-  procList.style.display='none';
-  document.getElementById('proc-list-header').style.display='none';
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');
 }
@@ -280,7 +174,7 @@ function setStatus(msg,cls){
 
 async function loadChips(){
   try{
-    const r=await fetch('/venues');
+    const r=await fetch('/api/venues');
     const list=await r.json();
     const cont=document.getElementById('chips');
     cont.innerHTML='';
@@ -290,8 +184,8 @@ async function loadChips(){
       const chip=document.createElement('div');
       chip.className='chip';
       chip.innerHTML=`<span>${v.short_name}</span>
-        <a href="/venues/${v.slug}" target="_blank">view</a>
-        <a href="/venues/${v.slug}" download="${v.slug}.json">JSON</a>`;
+        <a href="/api/venues/${v.slug}" target="_blank">view</a>
+        <a href="/api/venues/${v.slug}" download="${v.slug}.json">JSON</a>`;
       cont.appendChild(chip);
     });
   }catch(e){}
