@@ -103,8 +103,9 @@ def _remove_tag_from_venues(tag: str) -> None:
 
 
 @router.get("/prefill")
-async def get_prefill(name: str):
-    return prefill_venue(name)
+async def get_prefill(name: str, existing_tags: str = ""):
+    tags = [t.strip() for t in existing_tags.split(",") if t.strip()] if existing_tags else []
+    return prefill_venue(name, existing_tags=tags or None)
 
 
 
