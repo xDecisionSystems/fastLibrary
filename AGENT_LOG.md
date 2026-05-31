@@ -6,6 +6,54 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — remove _default strategy fallback; blank means no strategy
+
+**Action:** Removed all hardcoded `"_default"` fallbacks throughout the codebase. `VenueRecord.strategy` now defaults to `""`. `_default_strategy_for_slug` returns `""` when no matching file exists. `_build_searcher_request` treats a blank strategy as "no strategy" — skips resolution and falls through to plain POST on `settings.searcher_api_base_url`. `list_venues` returns `""` for venues without a strategy field. Auto-select condition in `create_venue`/`update_venue` now triggers on blank rather than `"_default"`.
+
+**Files changed:**
+- `services/models.py` — `strategy` field default `"_default"` → `""`
+- `api/routes/venues.py` — `_default_strategy_for_slug` returns `""`; `_build_searcher_request` blank-strategy path; `list_venues` fallback `""`; create/update condition uses blank check
+- `VERSION.md` — bumped to `paper-library-v0.1.68`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Blank strategy is now the canonical "no strategy configured" state. Venues that still have `"_default"` in their stored JSON will read that string back on `GET` — they will attempt to resolve a `_default` strategy file, which does exist, so they continue to work. To fully clean those up, re-save via the venue edit page.
+
+**Open items:** None.
+
+---
+
+## [2026-05-31] claude-sonnet-4-6 — auto-select strategy by venue slug on create/update
+
+**Action:** Added `_default_strategy_for_slug(slug)` helper that returns the slug if a matching `strategies/<slug>.json` exists, otherwise `"_default"`. Applied in both `create_venue` and `update_venue`: when the strategy field is `"_default"` (i.e. not explicitly overridden by the caller), it is replaced with the slug-matched strategy. This means creating or saving an ATRD venue automatically sets `strategy: "atrd"` without any manual UI step.
+
+**Files changed:**
+- `api/routes/venues.py` — added `_default_strategy_for_slug`; applied in `create_venue` and `update_venue`
+- `VERSION.md` — bumped to `paper-library-v0.1.67`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Only applies when strategy is still `"_default"` — an explicit user selection is never overwritten. Works at both create and update time, so re-saving an existing venue with `_default` also upgrades it to the slug-matched strategy.
+
+**Open items:** Existing ATRD venue on the deployed server will not be auto-updated until it is re-saved via the venue edit page (which will trigger `update_venue` and apply the auto-select).
+
+---
+
+## [2026-05-31] claude-sonnet-4-6 — fix SEARCHER_API_BASE_URL missing /aev/search path
+
+**Action:** The default `SEARCHER_API_BASE_URL` was `https://searcher.xds-lab.com` — missing the `/aev/search` path prefix. Any venue using the `_default` strategy (or any strategy that falls back to `settings.searcher_api_base_url`) was POSTing to the bare domain root, which returns 404 from the searcher. The ATRD 2025 search failure reported by the user was caused by this. Updated the default in `config/settings.py`, `.env.example`, and `.env.dev`. The ATRD strategy already sets an explicit `base_url` so it was not affected once the venue's `strategy` field is set to `"atrd"` — but the default strategy for all other conferences was broken.
+
+**Files changed:**
+- `config/settings.py` — default `SEARCHER_API_BASE_URL` → `https://searcher.xds-lab.com/aev/search`
+- `.env.example` — same fix
+- `.env.dev` — same fix
+- `VERSION.md` — bumped to `paper-library-v0.1.66`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The `/aev/search` path is the documented API base for all endpoints on this searcher instance. Fixing the default means the deployed server's `.env` must also be updated (add `SEARCHER_API_BASE_URL=https://searcher.xds-lab.com/aev/search`) or re-run `deploy/update.sh` which will pick up the new default if the env var is unset.
+
+**Open items:** The ATRD venue on the deployed server also needs its `strategy` field set to `"atrd"` and a `download_sources` entry added for 2025 with the ATRD symposium papers-and-presentations page URL.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — fix JS TDZ crash in searchYear() from variable shadowing
 
 **Action:** Reviewed codex's strategy-execution wiring and Found-semantics changes. Found one critical JS bug: `const rows = papers.map(...)` inside `searchYear()` shadowed the module-level `let rows = []`. Because `const` is hoisted to the function scope, `rows.find()` called earlier in the same function hit the temporal dead zone and threw `ReferenceError: Cannot access 'rows' before initialization`, crashing every search. Renamed the local variable to `paperRows` to fix. Also verified `_build_searcher_url` path-joining, `_venues_using_strategy` `_default` fallback, and strategy placeholder resolution — all correct.

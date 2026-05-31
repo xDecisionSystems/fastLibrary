@@ -44,7 +44,7 @@ def _load() -> Settings:
         ieee_xplore_api_key=os.getenv("IEEE_XPLORE_API_KEY", ""),
         searcher_api_base_url=os.getenv(
             "SEARCHER_API_BASE_URL",
-            "https://searcher.xds-lab.com",
+            "https://searcher.xds-lab.com/aev/search",
         ),
     )
 

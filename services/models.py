@@ -106,7 +106,7 @@ class VenueRecord(BaseModel):
     proceedings_url: str = ""
     open_access: bool = False
     tags: list[str] = Field(default_factory=list)
-    strategy: str = "_default"
+    strategy: str = ""
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)
 

@@ -235,6 +235,13 @@ def _resolve_strategy(slug: str) -> dict:
     }
 
 
+def _default_strategy_for_slug(slug: str) -> str:
+    """Return slug if a matching strategy file exists, otherwise empty string."""
+    if slug and _strategy_path(slug).exists():
+        return slug
+    return ""
+
+
 def _find_download_source_for_year(venue_doc: dict, year: int) -> dict:
     for source in venue_doc.get("download_sources", []):
         if not isinstance(source, dict):
@@ -314,9 +321,9 @@ def _build_searcher_url(base_url: str, endpoint: str) -> str:
 
 def _build_searcher_request(venue_doc: dict, year: int) -> dict:
     payload = _build_searcher_payload(venue_doc, year)
-    strategy_slug = str(venue_doc.get("strategy") or "_default").strip() or "_default"
-    resolved_strategy = _resolve_strategy(strategy_slug)
-    if not resolved_strategy and strategy_slug != "_default":
+    strategy_slug = str(venue_doc.get("strategy") or "").strip()
+    resolved_strategy = _resolve_strategy(strategy_slug) if strategy_slug else {}
+    if strategy_slug and not resolved_strategy:
         raise RuntimeError(f"strategy '{strategy_slug}' was not found")
 
     fetch_step = None
@@ -518,6 +525,8 @@ async def create_venue(venue: VenueRecord):
         data = venue.model_dump()
         data["tags"] = _sanitize_tags(data.get("tags", []))
         data["slug"] = slug
+        if not data.get("strategy", "").strip():
+            data["strategy"] = _default_strategy_for_slug(slug)
         for field in _INTERNAL_VENUE_FIELDS:
             data[field] = existing_doc.get(field, data.get(field, {}))
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -544,7 +553,7 @@ async def list_venues():
                 "proceedings_url": d.get("proceedings_url", ""),
                 "open_access": d.get("open_access", False),
                 "tags": _sanitize_tags(d.get("tags", [])),
-                "strategy": d.get("strategy", "_default"),
+                "strategy": d.get("strategy", ""),
             })
         except Exception:
             continue
@@ -767,6 +776,8 @@ async def update_venue(slug: str, venue: VenueRecord):
         data = venue.model_dump()
         data["tags"] = _sanitize_tags(data.get("tags", []))
         data["slug"] = slug
+        if not data.get("strategy", "").strip():
+            data["strategy"] = _default_strategy_for_slug(slug)
         for field in _INTERNAL_VENUE_FIELDS:
             data[field] = existing_doc.get(field, data.get(field, {}))
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
