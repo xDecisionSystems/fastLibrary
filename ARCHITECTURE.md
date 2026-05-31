@@ -199,11 +199,16 @@ Venue API endpoints:
 |--------|-----------------------|----------------------|----------|
 | GET    | /api/venues/prefill   | `name` query param   | LLM-prefilled venue payload or `{"error": ...}` |
 | POST   | /api/venues           | `VenueRecord`        | Saved venue JSON plus `slug` |
-| GET    | /api/venues           | —                    | Venue summaries (`slug`, `short_name`, `long_name`, `type`, `publisher`, `due_date_month`, `open_access`) |
+| GET    | /api/venues           | —                    | Venue summaries (`slug`, `short_name`, `long_name`, `type`, `publisher`, `due_date_month`, `website_url`, `proceedings_url`, `open_access`, `tags`) |
 | GET    | /api/venues/{slug}    | —                    | Full venue JSON or 404 |
+| PUT    | /api/venues/{slug}    | `VenueRecord`        | Updated venue JSON or 404 |
 | DELETE | /api/venues/{slug}    | —                    | `{"deleted": "<slug>"}` or 404 |
+| GET    | /api/venues/tags      | —                    | Tag list (`string[]`) |
+| POST   | /api/venues/tags      | `{"tag": "<name>"}`  | Updated tag list (`string[]`) |
+| DELETE | /api/venues/tags/{tag}| —                    | Updated tag list (`string[]`) or 404 |
 
 `VenueRecord` includes `due_date_month` for conference submission cycles. Allowed values are calendar month names (`January` through `December`) or empty string when unknown / not applicable (for example, journals).
+Tags are normalized/tracked in `venues/_tags.json`. Tags cannot be empty, cannot exceed 64 characters, and cannot contain `/` or `\`. Deleting a tag removes it from the tag registry and from every saved venue record.
 
 Venue UI routes:
 
@@ -214,3 +219,5 @@ Venue UI routes:
 | GET    | /journals    | `journals.html` (journal list) |
 | GET    | /addconf     | `addconf.html` (conference creation form) |
 | GET    | /addjournal  | `addjournal.html` (journal creation form) |
+| GET    | /tags        | `tags.html` (tag management page) |
+| GET    | /venues/{slug} | `venue.html` (venue detail/edit page) |

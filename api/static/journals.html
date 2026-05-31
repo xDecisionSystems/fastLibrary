@@ -29,6 +29,11 @@
   nav a{color:#0066cc;text-decoration:none;margin-right:12px}
   nav a:hover{text-decoration:underline}
   nav a.active{font-weight:600;color:#333}
+  .tag-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .tag-chip{padding:3px 12px;border-radius:12px;font-size:.78rem;cursor:pointer;border:1px solid #bbb;background:#fff;color:#444}
+  .tag-chip.active{background:#0066cc;color:#fff;border-color:#0066cc}
+  .tag-chip-row{display:flex;flex-wrap:wrap;gap:4px;font-size:.75rem}
+  .tag-badge{background:#e8f0fe;color:#0052a3;border-radius:8px;padding:1px 7px}
 </style>
 </head>
 <body>
@@ -38,6 +43,7 @@
   <a href="/journals" class="active">Journals</a>
   <a href="/addconf">+ Add Conference</a>
   <a href="/addjournal">+ Add Journal</a>
+  <a href="/tags">Tags</a>
 </nav>
 <h1>Journals</h1>
 <p class="subtitle">Venues of type "journal".</p>
@@ -45,6 +51,7 @@
 <div class="toolbar">
   <input id="search" type="text" placeholder="Filter by name…" oninput="renderTable()">
 </div>
+<div class="tag-filters" id="tag-filters"></div>
 
 <div class="card">
   <table>
@@ -54,6 +61,7 @@
         <th>Long Name</th>
         <th>Publisher</th>
         <th>Website</th>
+        <th>Tags</th>
         <th>Open Access</th>
         <th>Actions</th>
       </tr>
@@ -65,29 +73,51 @@
 
 <script>
 let venues=[];
+let activeTag=null;
 
 async function load(){
   try{
-    const r=await fetch('/api/venues');
-    const all=await r.json();
+    const [venuesRes,tagsRes]=await Promise.all([fetch('/api/venues'),fetch('/api/venues/tags')]);
+    const all=await venuesRes.json();
     venues=all.filter(v=>v.type==='journal');
+    const tags=await tagsRes.json();
+    renderTagFilters(tags);
     renderTable();
   }catch(e){document.getElementById('empty').textContent='Failed to load venues.';document.getElementById('empty').style.display='';}
 }
 
+function renderTagFilters(tags){
+  const bar=document.getElementById('tag-filters');
+  bar.innerHTML='';
+  if(!tags.length)return;
+  tags.forEach(t=>{
+    const chip=document.createElement('button');
+    chip.className='tag-chip'+(activeTag===t?' active':'');
+    chip.textContent=t;
+    chip.onclick=()=>{activeTag=(activeTag===t?null:t);renderTagFilters(tags);renderTable();};
+    bar.appendChild(chip);
+  });
+}
+
 function renderTable(){
   const q=(document.getElementById('search').value||'').toLowerCase();
-  const rows=venues.filter(v=>!q||(v.short_name+v.long_name).toLowerCase().includes(q));
+  const rows=venues.filter(v=>{
+    if(q&&!(v.short_name+v.long_name).toLowerCase().includes(q))return false;
+    if(activeTag&&!(v.tags||[]).includes(activeTag))return false;
+    return true;
+  });
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
   document.getElementById('empty').style.display=rows.length?'none':'';
   rows.forEach(v=>{
+    const tagBadges=(v.tags||[]).map(t=>`<span class="tag-badge">${esc(t)}</span>`).join(' ');
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td><strong>${esc(v.short_name)}</strong></td>
       <td>${esc(v.long_name)}</td>
       <td>${esc(v.publisher||'—')}</td>
       <td>${v.website_url?`<a href="${esc(v.website_url)}" target="_blank">Website</a>`:'—'}</td>
+      <td><div class="tag-chip-row">${tagBadges||'—'}</div></td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
         <a href="/venues/${v.slug}" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>

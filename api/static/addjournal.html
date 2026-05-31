@@ -35,6 +35,9 @@
   #status.err{color:#cc0000}
   .checkbox-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
   .checkbox-row label{font-size:.875rem;color:#555;flex:0 0 160px}
+  .tag-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tag-picker label{display:flex;align-items:center;gap:4px;font-size:.8rem;background:#e8f0fe;border-radius:12px;padding:3px 10px;cursor:pointer;user-select:none}
+  .tag-picker input[type=checkbox]{accent-color:#0066cc}
   nav{margin:0 auto 16px auto;max-width:720px;font-size:.875rem}
   nav a{color:#0066cc;text-decoration:none;margin-right:12px}
   nav a:hover{text-decoration:underline}
@@ -48,6 +51,7 @@
   <a href="/journals">Journals</a>
   <a href="/addconf">+ Add Conference</a>
   <a href="/addjournal" class="active">+ Add Journal</a>
+  <a href="/tags">Tags</a>
 </nav>
 <div class="card">
   <h1>Add Journal</h1>
@@ -65,6 +69,11 @@
   <div class="checkbox-row">
     <label>Open access</label>
     <input id="f-open_access" type="checkbox">
+  </div>
+
+  <div class="row">
+    <label style="padding-top:6px">Tags</label>
+    <div id="tag-picker" class="tag-picker"><span style="font-size:.8rem;color:#aaa">Loading tags…</span></div>
   </div>
 
   <div class="row"><label>Notes</label><textarea id="f-notes"></textarea></div>
@@ -89,6 +98,33 @@
 </div>
 
 <script>
+async function loadTagPicker(selected=[]){
+  try{
+    const r=await fetch('/api/venues/tags');
+    const tags=await r.json();
+    renderTagPicker(tags,selected);
+  }catch(e){document.getElementById('tag-picker').innerHTML='<span style="font-size:.8rem;color:#aaa">Tags unavailable</span>';}
+}
+
+function renderTagPicker(tags,selected=[]){
+  const picker=document.getElementById('tag-picker');
+  picker.innerHTML='';
+  if(!tags.length){picker.innerHTML='<span style="font-size:.8rem;color:#aaa">No tags defined. <a href="/tags">Add tags</a></span>';return;}
+  tags.forEach(t=>{
+    const lbl=document.createElement('label');
+    const cb=document.createElement('input');
+    cb.type='checkbox';
+    cb.value=t;
+    cb.checked=selected.includes(t);
+    lbl.append(cb,document.createTextNode(t));
+    picker.appendChild(lbl);
+  });
+}
+
+function getSelectedTags(){
+  return [...document.querySelectorAll('#tag-picker input[type=checkbox]:checked')].map(cb=>cb.value);
+}
+
 async function doPrefill(){
   const name=document.getElementById('prefill-name').value.trim();
   if(!name)return;
@@ -107,6 +143,7 @@ function populate(d){
   set('f-publisher',d.publisher||'');
   set('f-website_url',d.website_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
+  loadTagPicker(d.tags||[]);
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
   (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
@@ -140,6 +177,7 @@ function getForm(){
     website_url:document.getElementById('f-website_url').value.trim(),
     proceedings_url:'',
     open_access:document.getElementById('f-open_access').checked,
+    tags:getSelectedTags(),
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
   };
@@ -162,6 +200,7 @@ async function doSave(){
 function clearForm(){
   ['f-short_name','f-long_name','f-publisher','f-website_url','f-notes'].forEach(id=>set(id,''));
   document.getElementById('f-open_access').checked=false;
+  loadTagPicker([]);
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');
 }
@@ -200,6 +239,7 @@ async function loadChips(){
 }
 
 loadChips();
+loadTagPicker();
 </script>
 </body>
 </html>

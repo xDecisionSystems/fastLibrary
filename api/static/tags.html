@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tags — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.4rem;margin-bottom:6px}
+  .subtitle{font-size:.85rem;color:#666;margin-bottom:20px}
+  .card{background:#fff;border-radius:8px;padding:24px;max-width:480px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .add-bar{display:flex;gap:8px;margin-bottom:20px}
+  .add-bar input{flex:1;padding:7px 12px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-danger{background:#cc2222;color:#fff;padding:3px 10px;font-size:.78rem}
+  .btn-danger:hover{background:#a01a1a}
+  .tag-list{display:flex;flex-direction:column;gap:6px}
+  .tag-row{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f0f4ff;border-radius:6px;font-size:.875rem}
+  .tag-name{font-weight:500}
+  #status{margin-top:12px;font-size:.85rem;color:green;min-height:18px}
+  #status.err{color:#cc0000}
+  #empty{color:#888;font-size:.875rem;display:none}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  nav a.active{font-weight:600;color:#333}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/addconf">+ Add Conference</a>
+  <a href="/addjournal">+ Add Journal</a>
+  <a href="/tags" class="active">Tags</a>
+</nav>
+<h1>Tags</h1>
+<p class="subtitle">Manage tags that can be applied to conferences and journals.</p>
+
+<div class="card">
+  <div class="add-bar">
+    <input id="new-tag" type="text" placeholder="New tag name" onkeydown="if(event.key==='Enter')doAdd()">
+    <button class="btn btn-primary" onclick="doAdd()">Add Tag</button>
+  </div>
+  <div class="tag-list" id="tag-list"></div>
+  <div id="empty">No tags yet.</div>
+  <div id="status"></div>
+</div>
+
+<script>
+async function loadTags(){
+  try{
+    const r=await fetch('/api/venues/tags');
+    const tags=await r.json();
+    render(tags);
+  }catch(e){setStatus('Failed to load tags: '+e.message,'err');}
+}
+
+function render(tags){
+  const list=document.getElementById('tag-list');
+  const empty=document.getElementById('empty');
+  list.innerHTML='';
+  empty.style.display=tags.length?'none':'';
+  tags.forEach(t=>{
+    const row=document.createElement('div');
+    row.className='tag-row';
+    const name=document.createElement('span');
+    name.className='tag-name';
+    name.textContent=t;
+    const del=document.createElement('button');
+    del.className='btn btn-danger';
+    del.textContent='Delete';
+    del.onclick=()=>doDelete(t);
+    row.append(name,del);
+    list.appendChild(row);
+  });
+}
+
+async function doAdd(){
+  const input=document.getElementById('new-tag');
+  const tag=input.value.trim();
+  if(!tag)return;
+  try{
+    const r=await fetch('/api/venues/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag})});
+    const tags=await r.json();
+    if(!r.ok){setStatus(tags.detail||JSON.stringify(tags),'err');return;}
+    input.value='';
+    render(tags);
+    setStatus('','');
+  }catch(e){setStatus('Request failed: '+e.message,'err');}
+}
+
+async function doDelete(tag){
+  if(!confirm('Delete tag "'+tag+'"?'))return;
+  try{
+    const r=await fetch('/api/venues/tags/'+encodeURIComponent(tag),{method:'DELETE'});
+    const tags=await r.json();
+    if(!r.ok){setStatus(tags.detail||JSON.stringify(tags),'err');return;}
+    render(tags);
+    setStatus('','');
+  }catch(e){setStatus('Request failed: '+e.message,'err');}
+}
+
+function setStatus(msg,cls){
+  const el=document.getElementById('status');
+  el.textContent=msg;
+  el.className=cls||'';
+}
+
+loadTags();
+</script>
+</body>
+</html>

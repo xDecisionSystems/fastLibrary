@@ -89,6 +89,7 @@ class VenueRecord(BaseModel):
     website_url: str = ""
     proceedings_url: str = ""
     open_access: bool = False
+    tags: list[str] = Field(default_factory=list)
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)
 

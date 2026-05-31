@@ -58,6 +58,11 @@ async def page_journals():
     return FileResponse(_STATIC_DIR / "journals.html")
 
 
+@app.get("/tags", include_in_schema=False)
+async def page_tags():
+    return FileResponse(_STATIC_DIR / "tags.html")
+
+
 @app.get("/venues/{slug}", include_in_schema=False)
 async def page_venue(slug: str):
     return FileResponse(_STATIC_DIR / "venue.html")
@@ -65,4 +70,4 @@ async def page_venue(slug: str):
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return RedirectResponse(url="/docs")
+    return RedirectResponse(url="/venues")
