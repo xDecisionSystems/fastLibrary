@@ -1,0 +1,25 @@
+{
+  "slug": "atrd",
+  "name": "ATRD Strategy",
+  "description": "Strategy for the Air Transport Research and Development symposium. Overrides the fetch step to scrape paper metadata directly from the ATRD symposium papers-and-presentations page via the searcher /search_atrd_papers endpoint. The per-year URL is taken from the venue's download_sources entry whose name matches the target year.",
+  "extends": "_default",
+  "steps": [
+    {
+      "id": "fetch_papers",
+      "name": "Fetch ATRD Papers",
+      "type": "searcher_endpoint",
+      "description": "Call GET /search_atrd_papers with the ATRD symposium papers-and-presentations page URL for the target year. Returns paper metadata including title, authors, section, best-paper flag, and Google Drive PDF link.",
+      "config": {
+        "endpoint": "/search_atrd_papers",
+        "method": "GET",
+        "base_url": "https://searcher.xds-lab.com/aev/search",
+        "params": {
+          "url": "{download_sources[year].url}"
+        },
+        "url_source": "download_sources",
+        "url_source_key": "url",
+        "notes": "The url param must be the ATRD symposium papers-and-presentations page for the target year, taken from the venue's download_sources list. Response fields: title, authors, section, is_best_paper, full_paper_url, presentation_url."
+      }
+    }
+  ]
+}

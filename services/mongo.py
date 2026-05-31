@@ -20,6 +20,10 @@ def get_collection() -> AsyncIOMotorCollection:
     return get_client()[settings.mongo_db]["papers"]
 
 
+def get_search_cache_collection() -> AsyncIOMotorCollection:
+    return get_client()[settings.mongo_db]["paper_search_cache"]
+
+
 async def connect() -> None:
     global _client
     _client = AsyncIOMotorClient(settings.mongo_uri)
@@ -27,6 +31,8 @@ async def connect() -> None:
     await coll.create_index("doi", unique=True)
     await coll.create_index([("title", "text"), ("tags", "text")])
     await coll.create_index([("source", 1), ("publication_year", 1)])
+    cache_coll = get_search_cache_collection()
+    await cache_coll.create_index([("slug", 1), ("year", 1)], unique=True)
 
 
 async def disconnect() -> None:
@@ -106,6 +112,38 @@ async def delete_paper(doi: str) -> bool:
     coll = get_collection()
     result = await coll.delete_one({"doi": doi})
     return result.deleted_count > 0
+
+
+async def upsert_search_cache(slug: str, year: int, papers: list[dict]) -> None:
+    coll = get_search_cache_collection()
+    now = datetime.utcnow()
+    await coll.update_one(
+        {"slug": slug, "year": year},
+        {
+            "$set": {
+                "papers": papers,
+                "total": len(papers),
+                "searched_at": now,
+            },
+            "$setOnInsert": {"slug": slug, "year": year},
+        },
+        upsert=True,
+    )
+
+
+async def get_search_cache(slug: str, year: int) -> dict | None:
+    coll = get_search_cache_collection()
+    return await coll.find_one({"slug": slug, "year": year}, {"_id": 0})
+
+
+async def get_search_cache_counts(slug: str, years: list[int]) -> dict[int, int]:
+    """Return {year: total} for all cached searches matching slug and given years."""
+    coll = get_search_cache_collection()
+    cursor = coll.find(
+        {"slug": slug, "year": {"$in": years}},
+        {"_id": 0, "year": 1, "total": 1},
+    )
+    return {doc["year"]: doc["total"] async for doc in cursor}
 
 
 async def bulk_upsert(

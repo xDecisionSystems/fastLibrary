@@ -6,6 +6,52 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — add paper_search_cache and Found column on getpapers page
+
+**Action:** Added a `paper_search_cache` MongoDB collection to store search results per `(slug, year)` without touching the main `papers` collection. The search endpoint now saves results to this cache on every call. The paper-downloads endpoint reads cache counts and returns a `found_papers` field per year row. The getpapers UI gains a "Found" column that shows the cached count (populated on load and updated in-place immediately after a search completes).
+
+**Files changed:**
+- `services/mongo.py` — added `get_search_cache_collection()`, unique index on `(slug, year)`, and helpers `upsert_search_cache`, `get_search_cache`, `get_search_cache_counts`
+- `api/routes/venues.py` — `search_papers_for_conference_year` now calls `mongo.upsert_search_cache`; `get_paper_downloads` now calls `mongo.get_search_cache_counts` and includes `found_papers` in each year row
+- `api/static/getpapers.html` — "Found" column added; `load()` maps `found_papers`; `searchYear()` updates the Found cell in-place after a successful search
+- `VERSION.md` — bumped to `paper-library-v0.1.63`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Cache is keyed on `(slug, year)` with a unique index — each search overwrites the previous result for that year. `found_papers` shows `—` when no search has been run yet. The Found cell updates immediately on search success without requiring a full page reload.
+
+**Open items:** A future "Download from cache" path could read `paper_search_cache` instead of re-calling the searcher, saving an external API round-trip.
+
+---
+
+## [2026-05-31] claude-sonnet-4-6 — add atrd strategy using /search_atrd_papers endpoint
+
+**Action:** Created `strategies/atrd.json`. Inherits all steps from `_default` (DOI resolve, citation fetch, upsert) and overrides `fetch_papers` to call `GET /search_atrd_papers` on the searcher API. The `url` param is sourced from the venue's `download_sources` entry for the target year. Response fields from the ATRD endpoint (title, authors, section, is_best_paper, full_paper_url, presentation_url) are documented in the step config notes.
+
+**Files changed:**
+- `strategies/atrd.json` — new ATRD strategy file
+- `VERSION.md` — bumped to `paper-library-v0.1.62`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used `extends: "_default"` so only the fetch step is overridden; DOI resolution, citation lookup, and upsert are inherited unchanged. The `base_url` is set explicitly to `https://searcher.xds-lab.com/aev/search` since ATRD uses a GET with a `url` query param rather than the default POST body contract.
+
+**Open items:** The ATRD venue record still needs to be created with per-year `download_sources` entries (name = year string, url = ATRD symposium papers page for that year). The `_post_to_searcher` / download flow in `venues.py` also needs to be updated to dispatch GET requests when the strategy step specifies `method: GET`.
+
+---
+
+## [2026-05-31] claude-sonnet-4-6 — add Search Papers button and preview modal to getpapers page
+
+**Action:** Added a "Search Papers" button to each year row on the `/getpapers/{slug}` page. Clicking it calls the new `GET /api/venues/{slug}/paper-search/{year}` endpoint, which runs the same searcher API query as Download but returns the raw paper list without saving anything to MongoDB. Results appear in a modal overlay (DOI, title, authors, year, source columns) so the user can preview what exists before committing a download.
+
+**Files changed:**
+- `api/routes/venues.py` — added `GET /{slug}/paper-search/{year}` endpoint (preview-only, no upsert)
+- `api/static/getpapers.html` — Search button in Actions column; modal overlay with results table; `searchYear()`, `closeSearchModal()` JS functions; modal CSS
+
+**Decisions:** Endpoint is a GET so it is safe to call repeatedly without side effects. Modal closes on Escape or overlay click. Authors are truncated to 3 + "et al." to keep rows readable.
+
+**Open items:** This is a prerequisite for the ATRD paper download strategy. Next step: define a download strategy that uses the search preview to select papers before triggering the full download.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — add download strategy system with inheritance and management UI
 
 **Action:** Implemented a JSON-based strategy system for conference paper download workflows. Each strategy is stored as a `strategies/<slug>.json` file. Strategies can inherit from a parent via `extends` and override individual steps by `id`. A resolved endpoint merges the full inheritance chain before returning. Added `Strategy` and `StrategyStep` Pydantic models, a full CRUD API at `/api/strategies`, a `strategy` field on `VenueRecord`, and two new pages: `/strategies` (list + create) and `/strategies/{slug}` (edit with Human Readable, JSON Editor, and Resolved View tabs). Seeded `_default.json` and `ieee_xplore.json` as starter strategies.
@@ -48,7 +94,7 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ## [2026-05-31] codex-gpt-5 — add conference Get Papers workflow with per-year status
 
-**Action:** Added a conference paper download flow backed by a new `/getpapers/{slug}` page and new venue API endpoints for fetching per-year download status and triggering downloads. The backend now calls the external searcher API (`SEARCHER_API_BASE_URL`, default `https://seracher.xds-lab.com`), bulk-upserts returned papers, and stores per-year metrics (`downloaded_papers`, `last_attempted_at`, status/error) in venue JSON. Added “Get Papers” actions on conference rows and preserved internal `paper_downloads` metadata during venue create/update writes.
+**Action:** Added a conference paper download flow backed by a new `/getpapers/{slug}` page and new venue API endpoints for fetching per-year download status and triggering downloads. The backend now calls the external searcher API (`SEARCHER_API_BASE_URL`, default `https://searcher.xds-lab.com`), bulk-upserts returned papers, and stores per-year metrics (`downloaded_papers`, `last_attempted_at`, status/error) in venue JSON. Added "Get Papers" actions on conference rows and preserved internal `paper_downloads` metadata during venue create/update writes.
 
 **Files changed:**
 - `api/routes/venues.py` — added paper download helpers and `GET/POST /api/venues/{slug}/paper-downloads...`; preserves internal metadata in create/update
@@ -163,58 +209,3 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 **Open items:** Fixes are needed for tag lifecycle consistency and tag identifier validation (see review findings in assistant response).
 
 ---
-
-## [2026-05-31] claude-sonnet-4-6 — add venue tagging system with tag management page and filters
-
-**Action:** Added a full tagging system for venues. Tags are stored in `venues/_tags.json` as a sorted list. Added `tags: list[str]` to `VenueRecord`. Added three API endpoints: `GET /api/venues/tags`, `POST /api/venues/tags`, `DELETE /api/venues/tags/{tag}`. Created `tags.html` for adding/deleting tags. Added tag checkbox picker to `addconf.html`, `addjournal.html`, and `venue.html`. Added clickable tag filter chips and a Tags column to all three listing pages. Added `/tags` page route and Tags nav link across all pages.
-
-**Files changed:**
-- `services/models.py` — added `tags` field to `VenueRecord`
-- `api/routes/venues.py` — added `_load_tags`, `_save_tags` helpers; added `GET/POST /tags` and `DELETE /tags/{tag}` endpoints; added `tags` to list payload
-- `api/main.py` — added `/tags` page route
-- `api/static/tags.html` — new tag management page
-- `api/static/addconf.html` — tag picker, Tags nav link
-- `api/static/addjournal.html` — tag picker, Tags nav link
-- `api/static/venue.html` — tag picker, Tags nav link
-- `api/static/venues.html` — tag filter chips, Tags column, Tags nav link
-- `api/static/conf.html` — tag filter chips, Tags column, Tags nav link
-- `api/static/journals.html` — tag filter chips, Tags column, Tags nav link
-- `VERSION.md` — bumped to `paper-library-v0.1.52`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Tags stored in `_tags.json` inside the venues directory — no new directory or database needed. Clicking an active tag chip deselects it (toggle). Tags in listing pages fetched in parallel with venues for minimal latency.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — set /venues as root homepage
-
-**Action:** Changed the root `/` redirect from `/docs` to `/venues`.
-
-**Files changed:**
-- `api/main.py` — root redirect updated
-- `VERSION.md` — bumped to `paper-library-v0.1.51`
-- `AGENT_LOG.md` — prepended this entry
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — remove max-width cap from listing pages
-
-**Action:** Removed `max-width:900px` from `.card` and `.toolbar` in venues.html, conf.html, and journals.html so the tables fill the full page width.
-
-**Files changed:**
-- `api/static/venues.html` — removed max-width from .card and .toolbar
-- `api/static/conf.html` — same
-- `api/static/journals.html` — same
-- `VERSION.md` — bumped to `paper-library-v0.1.50`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** No max-width constraint applied; tables expand to body padding boundary.
-
-**Open items:** None.
-
----
-

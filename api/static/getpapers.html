@@ -31,6 +31,22 @@
   #status.err{color:#b30000}
   #status.ok{color:green}
   .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.2);width:100%;max-width:860px;max-height:80vh;display:flex;flex-direction:column}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e0e0e0}
+  .modal-header h2{font-size:1rem;font-weight:600;margin:0}
+  .modal-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#555;line-height:1}
+  .modal-body{overflow-y:auto;padding:14px 18px;flex:1}
+  .modal-body table{width:100%;border-collapse:collapse;font-size:.8rem}
+  .modal-body th{text-align:left;padding:8px 10px;background:#f0f0f0;border-bottom:1px solid #ddd;white-space:nowrap}
+  .modal-body td{padding:7px 10px;border-bottom:1px solid #eee;vertical-align:top}
+  .modal-body tr:last-child td{border-bottom:none}
+  .modal-empty{color:#777;font-size:.9rem;padding:8px 0}
+  #modal-status{margin-top:8px;font-size:.85rem;min-height:18px}
+  #modal-status.err{color:#b30000}
+  .btn-search{background:#6c3483;color:#fff}
+  .btn-search:hover{background:#512e6d}
 </style>
 </head>
 <body>
@@ -53,6 +69,7 @@
     <thead>
       <tr>
         <th>Year</th>
+        <th>Found</th>
         <th>Downloaded Papers</th>
         <th>Last Attempted</th>
         <th>Status</th>
@@ -63,6 +80,19 @@
   </table>
   <div id="empty">No years yet. Add a year and click "Download".</div>
   <div id="status"></div>
+</div>
+
+<div id="search-modal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Search Results</h2>
+      <button class="modal-close" onclick="closeSearchModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-status"></div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -94,12 +124,17 @@ function render(){
     const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':'');
     const statusLabel=r.last_status?r.last_status.toUpperCase():'—';
     const errorSuffix=r.last_error?`<div style="font-size:.74rem;color:#777">${esc(r.last_error)}</div>`:'';
+    tr.id=`row-${r.year}`;
     tr.innerHTML=`
       <td class="mono">${r.year}</td>
+      <td id="found-${r.year}">${Number.isFinite(r.found_papers)&&r.found_papers>0?r.found_papers:'—'}</td>
       <td>${Number.isFinite(r.downloaded_papers)?r.downloaded_papers:0}</td>
       <td>${esc(formatDate(r.last_attempted_at))}</td>
       <td><span class="${statusClass}">${statusLabel}</span>${errorSuffix}</td>
-      <td><button class="btn btn-primary" onclick="downloadYear(${r.year})">Download</button></td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-search" onclick="searchYear(${r.year})">Search</button>
+        <button class="btn btn-primary" onclick="downloadYear(${r.year})">Download</button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
@@ -163,6 +198,7 @@ async function load(){
     document.getElementById('subtitle').textContent=d.long_name||'Download papers by conference year.';
     rows=(d.years||[]).map((row)=>({
       year:Number(row.year),
+      found_papers:Number(row.found_papers||0),
       downloaded_papers:Number(row.downloaded_papers||0),
       last_attempted_at:row.last_attempted_at||'',
       last_status:row.last_status||'',
@@ -172,6 +208,55 @@ async function load(){
     render();
   }catch(e){
     setStatus('Failed to load: '+e.message,'err');
+  }
+}
+
+function closeSearchModal(){
+  document.getElementById('search-modal').classList.remove('open');
+}
+
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeSearchModal();});
+document.getElementById('search-modal').addEventListener('click',(e)=>{if(e.target===e.currentTarget)closeSearchModal();});
+
+async function searchYear(year){
+  document.getElementById('modal-title').textContent=`Search Results — ${year}`;
+  document.getElementById('modal-content').innerHTML='';
+  document.getElementById('modal-status').textContent='Searching…';
+  document.getElementById('modal-status').className='';
+  document.getElementById('search-modal').classList.add('open');
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-search/${year}`);
+    const d=await r.json();
+    if(!r.ok){
+      document.getElementById('modal-status').textContent=d.detail||'Search failed.';
+      document.getElementById('modal-status').className='err';
+      return;
+    }
+    const papers=d.papers||[];
+    const total=d.total||papers.length;
+    document.getElementById('modal-status').textContent=`${total} paper(s) found. Results cached locally.`;
+    const foundCell=document.getElementById(`found-${year}`);
+    if(foundCell)foundCell.textContent=total>0?total:'—';
+    if(!papers.length){
+      document.getElementById('modal-content').innerHTML='<p class="modal-empty">No papers returned by the searcher.</p>';
+      return;
+    }
+    const rows=papers.map((p)=>{
+      const doi=esc(p.doi||p.DOI||'');
+      const title=esc(p.title||'Untitled');
+      const authors=Array.isArray(p.authors)?esc(p.authors.slice(0,3).join(', ')+(p.authors.length>3?' et al.':'')):esc(p.authors||'');
+      const yr=esc(p.publication_year||p.year||'');
+      const src=esc(p.source||'');
+      return `<tr><td class="mono" style="white-space:nowrap">${doi||'—'}</td><td>${title}</td><td>${authors}</td><td>${yr}</td><td>${src}</td></tr>`;
+    }).join('');
+    document.getElementById('modal-content').innerHTML=`
+      <table>
+        <thead><tr><th>DOI</th><th>Title</th><th>Authors</th><th>Year</th><th>Source</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }catch(e){
+    document.getElementById('modal-status').textContent='Request failed: '+e.message;
+    document.getElementById('modal-status').className='err';
   }
 }
 

@@ -383,6 +383,7 @@ async def get_paper_downloads(slug: str):
 
     stats = _normalize_download_stats(doc.get("paper_downloads", {}))
     years = _conference_years(doc)
+    cache_counts = await mongo.get_search_cache_counts(slug, years)
     rows = []
     for year in years:
         key = str(year)
@@ -395,7 +396,7 @@ async def get_paper_downloads(slug: str):
                 "last_error": "",
             },
         )
-        rows.append({"year": year, **row})
+        rows.append({"year": year, "found_papers": cache_counts.get(year, 0), **row})
 
     return {
         "slug": slug,
@@ -404,6 +405,42 @@ async def get_paper_downloads(slug: str):
         "type": doc.get("type", ""),
         "years": rows,
     }
+
+
+@router.get("/{slug}/paper-search/{year}")
+async def search_papers_for_conference_year(slug: str, year: int):
+    parsed_year = _parse_year(year)
+    if parsed_year is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"year must be between {_DOWNLOAD_YEAR_MIN} and next calendar year",
+        )
+
+    path = _venue_path(slug)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Venue '{slug}' not found")
+    doc = _load_venue_doc(path)
+    if doc.get("type") != "conference":
+        raise HTTPException(status_code=400, detail="paper search is only supported for conference venues")
+
+    try:
+        payload = _build_searcher_payload(doc, parsed_year)
+        searcher_response = await asyncio.to_thread(_post_to_searcher, payload)
+        paper_candidates = _extract_response_papers(searcher_response)
+        await mongo.upsert_search_cache(slug, parsed_year, paper_candidates)
+        return {
+            "slug": slug,
+            "year": parsed_year,
+            "total": len(paper_candidates),
+            "papers": paper_candidates,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"failed to fetch papers from external searcher API: {exc}",
+        ) from exc
 
 
 @router.post("/{slug}/paper-downloads/{year}")
