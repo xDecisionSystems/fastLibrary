@@ -20,6 +20,9 @@
   table{width:100%;border-collapse:collapse;font-size:.875rem}
   th{text-align:left;padding:10px 14px;background:#f0f0f0;border-bottom:1px solid #ddd;white-space:nowrap}
   td{padding:9px 14px;border-bottom:1px solid #eee;vertical-align:top}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable .sort-ind{font-size:.75rem;color:#888;margin-left:6px}
+  th.sortable.active .sort-ind{color:#0066cc}
   tr:last-child td{border-bottom:none}
   tr:hover td{background:#fafafa}
   .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75rem;background:#e8f0fe;color:#0052a3}
@@ -59,14 +62,14 @@
   <table>
     <thead>
       <tr>
-        <th>Short Name</th>
-        <th>Long Name</th>
-        <th>Type</th>
-        <th>Publisher</th>
-        <th>Submission Deadline</th>
-        <th>Links</th>
-        <th>Tags</th>
-        <th>Open Access</th>
+        <th class="sortable" data-sort="short_name">Short Name <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="long_name">Long Name <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="type">Type <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="publisher">Publisher <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="due_date_month">Submission Deadline <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="website_url">Links <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="tags">Tags <span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="open_access">Open Access <span class="sort-ind"></span></th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -78,6 +81,12 @@
 <script>
 let venues=[];
 let activeTag=null;
+let sortKey='short_name';
+let sortDir='asc';
+const MONTH_ORDER={
+  January:1,February:2,March:3,April:4,May:5,June:6,
+  July:7,August:8,September:9,October:10,November:11,December:12
+};
 
 async function load(){
   try{
@@ -109,6 +118,10 @@ function renderTable(){
     if(activeTag&&!(v.tags||[]).includes(activeTag))return false;
     return true;
   });
+  rows.sort((a,b)=>{
+    const cmp=compareSortValues(a,b,sortKey);
+    return sortDir==='asc'?cmp:-cmp;
+  });
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
   document.getElementById('empty').style.display=rows.length?'none':'';
@@ -134,12 +147,53 @@ function renderTable(){
 
 function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
 
+function getSortValue(v,key){
+  if(key==='open_access')return v.open_access?1:0;
+  if(key==='tags')return (v.tags||[]).join(', ');
+  if(key==='due_date_month')return MONTH_ORDER[v.due_date_month]||99;
+  if(key==='website_url')return v.website_url||v.proceedings_url||'';
+  return String(v[key]||'');
+}
+
+function compareSortValues(a,b,key){
+  const va=getSortValue(a,key);
+  const vb=getSortValue(b,key);
+  if(typeof va==='number'&&typeof vb==='number')return va-vb;
+  return String(va).localeCompare(String(vb),undefined,{sensitivity:'base'});
+}
+
+function setSort(key){
+  if(sortKey===key)sortDir=sortDir==='asc'?'desc':'asc';
+  else{sortKey=key;sortDir='asc';}
+  updateSortIndicators();
+  renderTable();
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    const key=th.dataset.sort;
+    const ind=th.querySelector('.sort-ind');
+    const active=key===sortKey;
+    th.classList.toggle('active',active);
+    th.setAttribute('aria-sort',active?(sortDir==='asc'?'ascending':'descending'):'none');
+    ind.textContent=active?(sortDir==='asc'?'▲':'▼'):'';
+  });
+}
+
+function initSortableHeaders(){
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    th.onclick=()=>setSort(th.dataset.sort);
+  });
+  updateSortIndicators();
+}
+
 async function doDelete(slug){
   if(!confirm('Delete venue "'+slug+'"?'))return;
   await fetch('/api/venues/'+slug,{method:'DELETE'});
   await load();
 }
 
+initSortableHeaders();
 load();
 </script>
 </body>

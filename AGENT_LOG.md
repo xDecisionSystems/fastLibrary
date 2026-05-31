@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] codex-gpt-5 — add click-to-sort ascending/descending on venue tables
+
+**Action:** Added client-side table sorting to the three venue listing pages (`/venues`, `/conferences`, `/journals`). Users can now click sortable column headers to toggle ascending/descending order. Sorting is applied after existing search and tag filters so current filter behavior is preserved.
+
+**Files changed:**
+- `api/static/venues.html` — sortable headers and sort state/comparators for all data columns (excluding Actions)
+- `api/static/conf.html` — sortable headers and sort state/comparators for conference columns
+- `api/static/journals.html` — sortable headers and sort state/comparators for journal columns
+- `VERSION.md` — bumped to `paper-library-v0.1.57`
+
+**Decisions:** Used per-page in-browser sorting state (`sortKey`, `sortDir`) with visual indicators (`▲`/`▼`) on active headers. Submission deadline sorting uses calendar month order rather than alphabetical order on pages where that column exists.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] codex-gpt-5 — fix stale prefill tags and robust existing_tags transport
 
 **Action:** Applied follow-up fixes to the Claude tag-input changes. Updated prefill request transport to send repeated `existing_tags` query params (instead of comma-joining) so tags with commas round-trip correctly. Updated add/edit pages so `loadTagSuggestions([])` clears stale text field state rather than preserving previous tags when prefill returns none.
