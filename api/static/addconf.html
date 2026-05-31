@@ -133,7 +133,7 @@ function serializeTags(arr){
 }
 
 async function loadTagSuggestions(selected=[]){
-  if(selected.length)document.getElementById('f-tags').value=serializeTags(selected);
+  document.getElementById('f-tags').value=serializeTags(selected);
   try{
     const r=await fetch('/api/venues/tags');
     const tags=(await r.json()).slice(0,10);
@@ -178,12 +178,16 @@ async function doPrefill(){
   if(!name)return;
   setStatus('Prefilling…','');
   try{
-    let url='/api/venues/prefill?name='+encodeURIComponent(name);
+    const params=new URLSearchParams({name});
     try{
       const tr=await fetch('/api/venues/tags');
       const allTags=await tr.json();
-      if(allTags.length)url+='&existing_tags='+encodeURIComponent(allTags.join(','));
+      allTags.forEach(tag=>{
+        const normalized=String(tag||'').trim();
+        if(normalized)params.append('existing_tags',normalized);
+      });
     }catch(e){}
+    const url='/api/venues/prefill?'+params.toString();
     const r=await fetch(url);
     const d=await r.json();
     if(d.error){setStatus(d.detail||d.error,'err');return;}

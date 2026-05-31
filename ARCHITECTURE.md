@@ -197,7 +197,7 @@ Venue API endpoints:
 
 | Method | Path                  | Body / Params        | Response |
 |--------|-----------------------|----------------------|----------|
-| GET    | /api/venues/prefill   | `name` query param   | LLM-prefilled venue payload or `{"error": ...}` |
+| GET    | /api/venues/prefill   | `name` + optional repeated `existing_tags` query params | LLM-prefilled venue payload or `{"error": ...}` |
 | POST   | /api/venues           | `VenueRecord`        | Saved venue JSON plus `slug` |
 | GET    | /api/venues           | —                    | Venue summaries (`slug`, `short_name`, `long_name`, `type`, `publisher`, `due_date_month`, `website_url`, `proceedings_url`, `open_access`, `tags`) |
 | GET    | /api/venues/{slug}    | —                    | Full venue JSON or 404 |

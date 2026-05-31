@@ -6,6 +6,24 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] codex-gpt-5 — fix stale prefill tags and robust existing_tags transport
+
+**Action:** Applied follow-up fixes to the Claude tag-input changes. Updated prefill request transport to send repeated `existing_tags` query params (instead of comma-joining) so tags with commas round-trip correctly. Updated add/edit pages so `loadTagSuggestions([])` clears stale text field state rather than preserving previous tags when prefill returns none.
+
+**Files changed:**
+- `api/routes/venues.py` — `GET /api/venues/prefill` now accepts `existing_tags: list[str]` query params via FastAPI `Query`
+- `api/static/addconf.html` — switched prefill URL building to `URLSearchParams` with repeated `existing_tags`; always sync/clear `#f-tags` in `loadTagSuggestions`
+- `api/static/addjournal.html` — same fixes as `addconf.html`
+- `api/static/venue.html` — always sync/clear `#f-tags` in `loadTagSuggestions`
+- `ARCHITECTURE.md` — documented optional repeated `existing_tags` query params for prefill
+- `VERSION.md` — bumped to `paper-library-v0.1.56`
+
+**Decisions:** Kept endpoint semantics GET-based and backward-compatible with existing `name` parameter while changing the optional tag transport shape to avoid delimiter ambiguity.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — AI prefill suggests tags from existing list, adds new ones if needed
 
 **Action:** Updated `prefill_venue` to accept an optional `existing_tags` list and include it in the LLM user message. Updated the prompt to instruct the model to prefer existing tags where they fit and only add new tags when the existing set is insufficient. Updated `GET /api/venues/prefill` to accept an `existing_tags` query param. Updated `doPrefill` in `addconf.html` and `addjournal.html` to fetch the full tag list and pass it to the prefill endpoint before calling populate.
@@ -156,74 +174,6 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 **Decisions:** Placed the fix in `update.sh` so existing LXCs are corrected automatically on next `update.sh` run without manual intervention.
 
 **Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — fix create_venue returning non-JSON 500 on filesystem error
-
-**Action:** Wrapped the `create_venue` handler body in a try/except so any filesystem exception raises an `HTTPException(500)` with a JSON detail body rather than letting FastAPI emit a plain-text 500 page. The browser-side error "Unexpected token 'I', 'Internal S'..." was caused by the server returning "Internal Server Error" as plain text instead of JSON.
-
-**Files changed:**
-- `api/routes/venues.py` — try/except around file write in `create_venue`
-- `VERSION.md` — bumped to `paper-library-v0.1.47`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Root cause on the deployed server is stale code (old `VenueRecord` without `website_url`/`proceedings_url`). This fix also guards against future filesystem errors. Deployed server must be updated via `deploy/update.sh` to resolve the underlying issue.
-
-**Open items:** Run `deploy/update.sh` on the LXC to deploy the new model fields.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — rename Notes to Description and update prefill prompt
-
-**Action:** Relabeled the Notes field in addconf.html to "Description" with a placeholder guiding the user to enter a brief scope/focus description. Updated the LLM prefill prompt so the `notes` field is filled with a description rather than a generic note.
-
-**Files changed:**
-- `api/static/addconf.html` — label and placeholder updated
-- `services/venues.py` — `notes` prompt rule updated
-- `VERSION.md` — bumped to `paper-library-v0.1.46`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** The underlying field key stays `notes` to avoid a model/API change; only the UI label and prompt guidance change.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — repurpose download sources as per-year proceedings in addconf
-
-**Action:** Relabeled the Download Sources table in addconf.html as "Per-Year Proceedings" with a clarifying note that it is only needed when individual years have separate URLs (the top-level Proceedings URL covers all years otherwise). Changed the Name column header and placeholder from "e.g. IEEE Xplore" to "e.g. 2024". The underlying `download_sources` field and data model are unchanged.
-
-**Files changed:**
-- `api/static/addconf.html` — section title, help text, column header, and placeholder updated
-- `VERSION.md` — bumped to `paper-library-v0.1.45`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Reused `download_sources` rather than adding a new field — the {name, url, notes} shape maps naturally to {year, url, notes}. No model or API changes needed.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — add website_url and proceedings_url fields to venues
-
-**Action:** Replaced the single `access_url` field with two URL fields: `website_url` (most recent conference/journal home page) and `proceedings_url` (publisher archive page, conferences only). Updated the LLM prefill prompt with rules for both fields. Updated addconf.html with two URL inputs; addjournal.html with one (website only). Updated all three listing pages with a "Links" column showing clickable Website/Proceedings links. Added backward-compatible fallback in list_venues() so existing JSON files with `access_url` still read correctly.
-
-**Files changed:**
-- `services/models.py` — replaced `access_url` with `website_url` and `proceedings_url`
-- `services/venues.py` — updated prefill prompt keys and rules for both URL fields
-- `api/routes/venues.py` — list payload includes `website_url` (with `access_url` fallback) and `proceedings_url`
-- `api/static/addconf.html` — two URL inputs (Conference Website, Proceedings URL); populate/getForm/clearForm updated
-- `api/static/addjournal.html` — single URL input (Journal Website); `proceedings_url` sent as ""
-- `api/static/conf.html` — "Links" column with Website / Proceedings links
-- `api/static/venues.html` — "Links" column with Website / Proceedings links
-- `api/static/journals.html` — "Website" column replacing unused Submission Deadline column
-- `VERSION.md` — bumped to `paper-library-v0.1.44`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Kept `access_url` fallback in list_venues() so existing venue JSON files are not broken. Journals show a Website column instead of Submission Deadline since that field is n/a for journals.
-
-**Open items:** Existing venue JSON files still store `access_url`; they will display correctly via the fallback but will lose the value if re-saved through the new form (user must re-enter the URL). A one-time migration script could rename the field in all JSON files if needed.
 
 ---
 

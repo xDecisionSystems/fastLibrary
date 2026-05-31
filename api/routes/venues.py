@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from config.settings import VENUES_DIR
 from services.models import VenueRecord
@@ -103,8 +103,8 @@ def _remove_tag_from_venues(tag: str) -> None:
 
 
 @router.get("/prefill")
-async def get_prefill(name: str, existing_tags: str = ""):
-    tags = [t.strip() for t in existing_tags.split(",") if t.strip()] if existing_tags else []
+async def get_prefill(name: str, existing_tags: list[str] | None = Query(default=None)):
+    tags = [t.strip() for t in (existing_tags or []) if t and t.strip()]
     return prefill_venue(name, existing_tags=tags or None)
 
 
