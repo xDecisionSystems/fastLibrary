@@ -64,10 +64,20 @@ class DownloadSource(BaseModel):
     notes: str = ""
 
 
-class ProceedingsYear(BaseModel):
-    year: Optional[int] = None
-    label: str = ""
-    url: str = ""
+_MONTH_NAMES = {
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+}
 
 
 class VenueRecord(BaseModel):
@@ -75,11 +85,19 @@ class VenueRecord(BaseModel):
     long_name: str = ""
     type: str = ""
     publisher: str = ""
+    due_date_month: str = ""
     access_url: str = ""
     open_access: bool = False
-    all_years: bool = True
-    year_start: Optional[int] = None
-    year_end: Optional[int] = None
-    proceedings_years: list[ProceedingsYear] = Field(default_factory=list)
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)
+
+    @field_validator("due_date_month")
+    @classmethod
+    def validate_due_date_month(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            return ""
+        titled = normalized.title()
+        if titled not in _MONTH_NAMES:
+            raise ValueError("due_date_month must be a calendar month name.")
+        return titled

@@ -7,13 +7,14 @@ from config.settings import settings
 
 _VENUE_PREFILL_PROMPT = """\
 You are a research database assistant. Given a conference or journal name, return a JSON object with these exact keys:
-  short_name, long_name, type, publisher, access_url, open_access, notes, download_sources
+  short_name, long_name, type, publisher, due_date_month, access_url, open_access, notes, download_sources
 
 Rules:
 - short_name: standard acronym (e.g. ICRA, NeurIPS, TRO, IJRR)
 - long_name: full official name
 - type: "conference" or "journal"
 - publisher: publishing organization (e.g. IEEE, ACM, Springer)
+- due_date_month: conference submission deadline month name (January..December), or "" if unknown/not applicable
 - access_url: main conference or journal home page URL; leave "" if not certain — do not guess
 - open_access: true or false
 - notes: any brief relevant note, else ""

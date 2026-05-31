@@ -33,9 +33,14 @@ app.include_router(venues_router.router, prefix="/api/venues")
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
-@app.get("/addvenue", include_in_schema=False)
-async def page_addvenue():
-    return FileResponse(_STATIC_DIR / "addvenue.html")
+@app.get("/addconf", include_in_schema=False)
+async def page_addconf():
+    return FileResponse(_STATIC_DIR / "addconf.html")
+
+
+@app.get("/addjournal", include_in_schema=False)
+async def page_addjournal():
+    return FileResponse(_STATIC_DIR / "addjournal.html")
 
 
 @app.get("/venues", include_in_schema=False)

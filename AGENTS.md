@@ -25,7 +25,8 @@ paper-library/
 │   │   ├── venues.py         # Venue CRUD + LLM prefill endpoints
 │   │   └── health.py         # GET /health
 │   └── static/               # Server-rendered browser pages
-│       ├── addvenue.html     # Add/edit venue with AI prefill
+│       ├── addconf.html      # Add conference with AI prefill
+│       ├── addjournal.html   # Add journal with AI prefill
 │       ├── venues.html       # All venues table
 │       ├── conf.html         # Conferences filtered table
 │       └── journals.html     # Journals filtered table

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Add Venue — Paper Library</title>
+<title>Add Conference — Paper Library</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
@@ -35,28 +35,49 @@
   #status.err{color:#cc0000}
   .checkbox-row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
   .checkbox-row label{font-size:.875rem;color:#555;flex:0 0 160px}
+  nav{margin:0 auto 16px auto;max-width:720px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  nav a.active{font-weight:600;color:#333}
 </style>
 </head>
 <body>
+<nav>
+  <a href="/venues">All</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/addconf" class="active">+ Add Conference</a>
+  <a href="/addjournal">+ Add Journal</a>
+</nav>
 <div class="card">
-  <h1>Add Venue</h1>
+  <h1>Add Conference</h1>
 
   <div class="prefill-bar">
-    <input id="prefill-name" type="text" placeholder="Conference or journal name (e.g. ICRA, Nature Robotics)">
+    <input id="prefill-name" type="text" placeholder="Conference name (e.g. ICRA)">
     <button class="btn btn-primary" onclick="doPrefill()">AI Prefill</button>
   </div>
 
   <div class="row"><label>Short name *</label><input id="f-short_name" type="text" placeholder="e.g. ICRA"></div>
   <div class="row"><label>Long name</label><input id="f-long_name" type="text" placeholder="e.g. International Conference on Robotics and Automation"></div>
-  <div class="row">
-    <label>Type</label>
-    <select id="f-type">
-      <option value="">— select —</option>
-      <option value="conference">Conference</option>
-      <option value="journal">Journal</option>
+  <div class="row"><label>Publisher</label><input id="f-publisher" type="text" placeholder="e.g. IEEE"></div>
+  <div class="row" id="due-date-row">
+    <label>Due Date</label>
+    <select id="f-due_date_month">
+      <option value="">— select month —</option>
+      <option value="January">January</option>
+      <option value="February">February</option>
+      <option value="March">March</option>
+      <option value="April">April</option>
+      <option value="May">May</option>
+      <option value="June">June</option>
+      <option value="July">July</option>
+      <option value="August">August</option>
+      <option value="September">September</option>
+      <option value="October">October</option>
+      <option value="November">November</option>
+      <option value="December">December</option>
     </select>
   </div>
-  <div class="row"><label>Publisher</label><input id="f-publisher" type="text" placeholder="e.g. IEEE"></div>
   <div class="row"><label>Main page URL</label><input id="f-access_url" type="url" placeholder="https://"></div>
 
   <div class="checkbox-row">
@@ -74,13 +95,13 @@
   <button class="btn btn-secondary" style="margin-top:8px" onclick="addSourceRow()">+ Add Source</button>
 
   <div style="margin-top:20px;display:flex;gap:10px">
-    <button class="btn btn-primary" onclick="doSave()">Save Venue</button>
+    <button class="btn btn-primary" onclick="doSave()">Save Conference</button>
     <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
   </div>
   <div id="status"></div>
 
   <div id="chips-section" style="margin-top:24px;border-top:1px solid #eee;padding-top:16px;display:none">
-    <div class="section-title">Saved Venues</div>
+    <div class="section-title">Saved Conferences</div>
     <div class="chips" id="chips"></div>
   </div>
 </div>
@@ -101,10 +122,8 @@ async function doPrefill(){
 function populate(d){
   set('f-short_name',d.short_name||'');
   set('f-long_name',d.long_name||'');
-  const typeSel=document.getElementById('f-type');
-  typeSel.value=(d.type||'').toLowerCase();
-  if(!typeSel.value)typeSel.value='';
   set('f-publisher',d.publisher||'');
+  set('f-due_date_month',d.due_date_month||'');
   set('f-access_url',d.access_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
   set('f-notes',d.notes||'');
@@ -134,13 +153,13 @@ function getForm(){
   return{
     short_name:document.getElementById('f-short_name').value.trim(),
     long_name:document.getElementById('f-long_name').value.trim(),
-    type:document.getElementById('f-type').value,
+    type:'conference',
     publisher:document.getElementById('f-publisher').value.trim(),
+    due_date_month:document.getElementById('f-due_date_month').value,
     access_url:document.getElementById('f-access_url').value.trim(),
     open_access:document.getElementById('f-open_access').checked,
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
-    proceedings_years:[],
   };
 }
 
@@ -159,8 +178,7 @@ async function doSave(){
 }
 
 function clearForm(){
-  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes'].forEach(id=>set(id,''));
-  document.getElementById('f-type').value='';
+  ['f-short_name','f-long_name','f-publisher','f-due_date_month','f-access_url','f-notes'].forEach(id=>set(id,''));
   document.getElementById('f-open_access').checked=false;
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');
@@ -175,7 +193,7 @@ function setStatus(msg,cls){
 async function loadChips(){
   try{
     const r=await fetch('/api/venues');
-    const list=await r.json();
+    const list=(await r.json()).filter(v=>v.type==='conference');
     const cont=document.getElementById('chips');
     cont.innerHTML='';
     if(!list.length){document.getElementById('chips-section').style.display='none';return;}
@@ -183,9 +201,17 @@ async function loadChips(){
     list.forEach(v=>{
       const chip=document.createElement('div');
       chip.className='chip';
-      chip.innerHTML=`<span>${v.short_name}</span>
-        <a href="/api/venues/${v.slug}" target="_blank">view</a>
-        <a href="/api/venues/${v.slug}" download="${v.slug}.json">JSON</a>`;
+      const nameSpan=document.createElement('span');
+      nameSpan.textContent=v.short_name;
+      const viewA=document.createElement('a');
+      viewA.href='/api/venues/'+v.slug;
+      viewA.target='_blank';
+      viewA.textContent='view';
+      const jsonA=document.createElement('a');
+      jsonA.href='/api/venues/'+v.slug;
+      jsonA.download=v.slug+'.json';
+      jsonA.textContent='JSON';
+      chip.append(nameSpan,viewA,jsonA);
       cont.appendChild(chip);
     });
   }catch(e){}

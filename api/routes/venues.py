@@ -50,6 +50,8 @@ async def list_venues():
                 "short_name": d.get("short_name", ""),
                 "long_name": d.get("long_name", ""),
                 "type": d.get("type", ""),
+                "publisher": d.get("publisher", ""),
+                "due_date_month": d.get("due_date_month", ""),
                 "open_access": d.get("open_access", False),
             })
         except Exception:

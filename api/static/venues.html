@@ -38,7 +38,8 @@
   <a href="/venues" class="active">All</a>
   <a href="/conferences">Conferences</a>
   <a href="/journals">Journals</a>
-  <a href="/addvenue">+ Add Venue</a>
+  <a href="/addconf">+ Add Conference</a>
+  <a href="/addjournal">+ Add Journal</a>
 </nav>
 <h1>Venues</h1>
 <p class="subtitle">All conferences and journals in the library.</p>
@@ -55,6 +56,7 @@
         <th>Long Name</th>
         <th>Type</th>
         <th>Publisher</th>
+        <th>Due Date</th>
         <th>Open Access</th>
         <th>Actions</th>
       </tr>
@@ -92,6 +94,7 @@ function renderTable(typeFilter=''){
       <td>${esc(v.long_name)}</td>
       <td><span class="badge ${v.type==='journal'?'journal':''}">${esc(v.type||'—')}</span></td>
       <td>${esc(v.publisher||'—')}</td>
+      <td>${esc(v.due_date_month||'—')}</td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
         <a href="/api/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>

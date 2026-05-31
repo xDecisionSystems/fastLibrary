@@ -188,3 +188,29 @@ The RAG system queries for un-ingested papers and marks them done:
 - **PDF download trigger**: when a paper with `pdf_link` but no `pdf_path` is upserted, optionally queue a background download job to fetch and store it automatically (complementing the manual upload endpoint).
 - **Webhook / event on insert**: emit an event (HTTP callback or message queue) when a new paper is inserted, so downstream services (e.g. RAG auto-ingest) can react immediately.
 - **Full-text search on abstracts**: add `snippet` to the text index once abstract content is reliably populated.
+
+## 11. Venue Registry (JSON Store)
+
+Venue metadata is stored as JSON files in `venues/<slug>.json` and exposed through the `/api/venues` router. This store is independent from the MongoDB paper store.
+
+Venue API endpoints:
+
+| Method | Path                  | Body / Params        | Response |
+|--------|-----------------------|----------------------|----------|
+| GET    | /api/venues/prefill   | `name` query param   | LLM-prefilled venue payload or `{"error": ...}` |
+| POST   | /api/venues           | `VenueRecord`        | Saved venue JSON plus `slug` |
+| GET    | /api/venues           | —                    | Venue summaries (`slug`, `short_name`, `long_name`, `type`, `publisher`, `due_date_month`, `open_access`) |
+| GET    | /api/venues/{slug}    | —                    | Full venue JSON or 404 |
+| DELETE | /api/venues/{slug}    | —                    | `{"deleted": "<slug>"}` or 404 |
+
+`VenueRecord` includes `due_date_month` for conference submission cycles. Allowed values are calendar month names (`January` through `December`) or empty string when unknown / not applicable (for example, journals).
+
+Venue UI routes:
+
+| Method | Path         | Response |
+|--------|--------------|----------|
+| GET    | /venues      | `venues.html` (all venues) |
+| GET    | /conferences | `conf.html` (conference list) |
+| GET    | /journals    | `journals.html` (journal list) |
+| GET    | /addconf     | `addconf.html` (conference creation form) |
+| GET    | /addjournal  | `addjournal.html` (journal creation form) |

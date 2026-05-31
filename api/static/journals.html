@@ -36,7 +36,8 @@
   <a href="/venues">All</a>
   <a href="/conferences">Conferences</a>
   <a href="/journals" class="active">Journals</a>
-  <a href="/addvenue">+ Add Venue</a>
+  <a href="/addconf">+ Add Conference</a>
+  <a href="/addjournal">+ Add Journal</a>
 </nav>
 <h1>Journals</h1>
 <p class="subtitle">Venues of type "journal".</p>
@@ -52,6 +53,7 @@
         <th>Short Name</th>
         <th>Long Name</th>
         <th>Publisher</th>
+        <th>Due Date</th>
         <th>Open Access</th>
         <th>Actions</th>
       </tr>
@@ -85,6 +87,7 @@ function renderTable(){
       <td><strong>${esc(v.short_name)}</strong></td>
       <td>${esc(v.long_name)}</td>
       <td>${esc(v.publisher||'—')}</td>
+      <td>${esc(v.due_date_month||'—')}</td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
         <a href="/api/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
