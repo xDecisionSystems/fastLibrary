@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — repurpose download sources as per-year proceedings in addconf
+
+**Action:** Relabeled the Download Sources table in addconf.html as "Per-Year Proceedings" with a clarifying note that it is only needed when individual years have separate URLs (the top-level Proceedings URL covers all years otherwise). Changed the Name column header and placeholder from "e.g. IEEE Xplore" to "e.g. 2024". The underlying `download_sources` field and data model are unchanged.
+
+**Files changed:**
+- `api/static/addconf.html` — section title, help text, column header, and placeholder updated
+- `VERSION.md` — bumped to `paper-library-v0.1.45`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Reused `download_sources` rather than adding a new field — the {name, url, notes} shape maps naturally to {year, url, notes}. No model or API changes needed.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — add website_url and proceedings_url fields to venues
 
 **Action:** Replaced the single `access_url` field with two URL fields: `website_url` (most recent conference/journal home page) and `proceedings_url` (publisher archive page, conferences only). Updated the LLM prefill prompt with rules for both fields. Updated addconf.html with two URL inputs; addjournal.html with one (website only). Updated all three listing pages with a "Links" column showing clickable Website/Proceedings links. Added backward-compatible fallback in list_venues() so existing JSON files with `access_url` still read correctly.

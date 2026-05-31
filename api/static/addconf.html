@@ -88,12 +88,13 @@
 
   <div class="row"><label>Notes</label><textarea id="f-notes"></textarea></div>
 
-  <div class="section-title">Download Sources</div>
+  <div class="section-title">Per-Year Proceedings</div>
+  <p style="font-size:.8rem;color:#888;margin-bottom:8px">Use when individual years have separate URLs. Leave empty if the Proceedings URL above covers all years.</p>
   <table id="sources-table">
-    <thead><tr><th>Name</th><th>URL</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Year</th><th>URL</th><th>Notes</th><th></th></tr></thead>
     <tbody id="sources-body"></tbody>
   </table>
-  <button class="btn btn-secondary" style="margin-top:8px" onclick="addSourceRow()">+ Add Source</button>
+  <button class="btn btn-secondary" style="margin-top:8px" onclick="addSourceRow()">+ Add Year</button>
 
   <div style="margin-top:20px;display:flex;gap:10px">
     <button class="btn btn-primary" onclick="doSave()">Save Conference</button>
@@ -138,7 +139,7 @@ function set(id,val){document.getElementById(id).value=val==null?'':val;}
 
 function addSourceRow(name='',url='',notes=''){
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td><input type="text" value="${esc(name)}" placeholder="e.g. IEEE Xplore"></td>
+  tr.innerHTML=`<td><input type="text" value="${esc(name)}" placeholder="e.g. 2024"></td>
     <td><input type="url" value="${esc(url)}" placeholder="https://"></td>
     <td><input type="text" value="${esc(notes)}"></td>
     <td><button class="btn btn-danger" onclick="this.closest('tr').remove()">✕</button></td>`;
