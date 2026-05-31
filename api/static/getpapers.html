@@ -245,7 +245,7 @@ async function searchYear(year){
       document.getElementById('modal-content').innerHTML='<p class="modal-empty">No papers returned by the searcher.</p>';
       return;
     }
-    const rows=papers.map((p)=>{
+    const paperRows=papers.map((p)=>{
       const doi=esc(p.doi||p.DOI||'');
       const title=esc(p.title||'Untitled');
       const authors=Array.isArray(p.authors)?esc(p.authors.slice(0,3).join(', ')+(p.authors.length>3?' et al.':'')):esc(p.authors||'');
@@ -256,7 +256,7 @@ async function searchYear(year){
     document.getElementById('modal-content').innerHTML=`
       <table>
         <thead><tr><th>DOI</th><th>Title</th><th>Authors</th><th>Year</th><th>Source</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${paperRows}</tbody>
       </table>`;
   }catch(e){
     document.getElementById('modal-status').textContent='Request failed: '+e.message;

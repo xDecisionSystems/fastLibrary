@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — fix JS TDZ crash in searchYear() from variable shadowing
+
+**Action:** Reviewed codex's strategy-execution wiring and Found-semantics changes. Found one critical JS bug: `const rows = papers.map(...)` inside `searchYear()` shadowed the module-level `let rows = []`. Because `const` is hoisted to the function scope, `rows.find()` called earlier in the same function hit the temporal dead zone and threw `ReferenceError: Cannot access 'rows' before initialization`, crashing every search. Renamed the local variable to `paperRows` to fix. Also verified `_build_searcher_url` path-joining, `_venues_using_strategy` `_default` fallback, and strategy placeholder resolution — all correct.
+
+**Files changed:**
+- `api/static/getpapers.html` — renamed `rows` → `paperRows` in `searchYear()` inner map to eliminate TDZ crash
+- `VERSION.md` — bumped to `paper-library-v0.1.65`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Only the variable rename was needed; the rest of codex's changes are functionally sound.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] codex-gpt-5 — wire strategy execution into paper search/download and fix Found semantics
 
 **Action:** Implemented strategy-driven search execution in venue paper search/download flows so fetch behavior now follows resolved strategy config (`method`, `endpoint`, `base_url`, and templated params/body). Split paper search into side-effect-free `GET /paper-search/{year}` (preview only) and cache-writing `POST /paper-search/{year}` used by the UI. Fixed Found-count semantics to distinguish unknown (`null` / `—`) from valid zero results (`0`). Added strategy delete protection that returns 409 if any venue still references the strategy. Updated architecture docs and bumped patch version.
