@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — create venues/ directory with correct ownership in deploy scripts
+
+**Action:** Added `venues/` directory creation (owned by `paperuser`) to both deploy scripts. `proxmox_deploy.sh` creates it alongside `pdf/` on fresh installs. `update.sh` ensures it exists with correct ownership on every update, fixing the `[Errno 13] Permission denied: 'venues/dasc.json'` error on existing deployments.
+
+**Files changed:**
+- `deploy/proxmox_deploy.sh` — added `venues/` to data directory creation block
+- `deploy/update.sh` — added data directory ensure step after git pull
+- `VERSION.md` — bumped to `paper-library-v0.1.48`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Placed the fix in `update.sh` so existing LXCs are corrected automatically on next `update.sh` run without manual intervention.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — fix create_venue returning non-JSON 500 on filesystem error
 
 **Action:** Wrapped the `create_venue` handler body in a try/except so any filesystem exception raises an `HTTPException(500)` with a JSON detail body rather than letting FastAPI emit a plain-text 500 page. The browser-side error "Unexpected token 'I', 'Internal S'..." was caused by the server returning "Internal Server Error" as plain text instead of JSON.

@@ -449,11 +449,12 @@ lxc_exec "$VMID" "
   ${VENV_DIR}/bin/pip install --quiet -r ${INSTALL_DIR}/requirements.txt
 "
 
-# ─── PDF storage directory ────────────────────────────────────────────────────
-log "Creating PDF storage directory ..."
+# ─── Data directories ─────────────────────────────────────────────────────────
+log "Creating data directories ..."
 lxc_exec "$VMID" "
   mkdir -p /opt/paper-library/pdf
-  chown paperuser:paperuser /opt/paper-library/pdf
+  mkdir -p /opt/paper-library/venues
+  chown paperuser:paperuser /opt/paper-library/pdf /opt/paper-library/venues
 "
 
 # ─── paper-library systemd service ───────────────────────────────────────────

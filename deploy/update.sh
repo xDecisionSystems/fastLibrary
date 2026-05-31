@@ -37,6 +37,11 @@ echo ""
 log "Pulling latest code in ${INSTALL_DIR} ..."
 git -C "${INSTALL_DIR}" pull --ff-only
 
+# ─── Ensure data directories exist with correct ownership ────────────────────
+log "Ensuring data directories ..."
+mkdir -p "${INSTALL_DIR}/pdf" "${INSTALL_DIR}/venues"
+chown paperuser:paperuser "${INSTALL_DIR}/pdf" "${INSTALL_DIR}/venues"
+
 # ─── Reinstall dependencies ───────────────────────────────────────────────────
 log "Installing Python dependencies ..."
 "${VENV_DIR}/bin/pip" install --quiet --upgrade pip
