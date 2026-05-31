@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get Papers — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.35rem;margin-bottom:4px}
+  .subtitle{font-size:.86rem;color:#666;margin-bottom:18px}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  .card{background:#fff;border-radius:8px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .controls input{width:120px;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .btn{padding:7px 12px;border:none;border-radius:4px;cursor:pointer;font-size:.85rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-secondary{background:#e0e0e0;color:#333}
+  .btn-secondary:hover{background:#c8c8c8}
+  table{width:100%;border-collapse:collapse;font-size:.875rem}
+  th{text-align:left;padding:10px 12px;background:#f0f0f0;border-bottom:1px solid #ddd}
+  td{padding:9px 12px;border-bottom:1px solid #eee}
+  tr:last-child td{border-bottom:none}
+  .status-ok{color:green;font-weight:600}
+  .status-err{color:#b30000;font-weight:600}
+  #empty{display:none;padding:16px 4px;color:#777;font-size:.9rem}
+  #status{margin-top:12px;font-size:.86rem;min-height:20px}
+  #status.err{color:#b30000}
+  #status.ok{color:green}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+</nav>
+
+<h1 id="title">Get Papers</h1>
+<p id="subtitle" class="subtitle">Download papers by conference year.</p>
+
+<div class="card">
+  <div class="controls">
+    <input id="year-input" type="number" min="1900" step="1" placeholder="Year (e.g. 2025)">
+    <button class="btn btn-secondary" onclick="addYear()">Add Year</button>
+    <button class="btn btn-secondary" onclick="load()">Refresh</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Downloaded Papers</th>
+        <th>Last Attempted</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="empty">No years yet. Add a year and click "Download".</div>
+  <div id="status"></div>
+</div>
+
+<script>
+const slug=location.pathname.split('/').filter(Boolean).pop();
+let rows=[];
+
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+
+function setStatus(msg,kind=''){
+  const el=document.getElementById('status');
+  el.textContent=msg;
+  el.className=kind;
+}
+
+function formatDate(value){
+  if(!value)return '—';
+  const dt=new Date(value);
+  if(Number.isNaN(dt.getTime()))return value;
+  return dt.toLocaleString();
+}
+
+function render(){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  rows.sort((a,b)=>b.year-a.year);
+  document.getElementById('empty').style.display=rows.length?'none':'';
+  rows.forEach((r)=>{
+    const tr=document.createElement('tr');
+    const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':'');
+    const statusLabel=r.last_status?r.last_status.toUpperCase():'—';
+    const errorSuffix=r.last_error?`<div style="font-size:.74rem;color:#777">${esc(r.last_error)}</div>`:'';
+    tr.innerHTML=`
+      <td class="mono">${r.year}</td>
+      <td>${Number.isFinite(r.downloaded_papers)?r.downloaded_papers:0}</td>
+      <td>${esc(formatDate(r.last_attempted_at))}</td>
+      <td><span class="${statusClass}">${statusLabel}</span>${errorSuffix}</td>
+      <td><button class="btn btn-primary" onclick="downloadYear(${r.year})">Download</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function upsertRow(year){
+  const numericYear=Number(year);
+  if(!Number.isInteger(numericYear)||numericYear<1900){
+    setStatus('Please enter a valid year (1900+).','err');
+    return;
+  }
+  const exists=rows.some(r=>r.year===numericYear);
+  if(exists){
+    setStatus(`Year ${numericYear} already exists.`,`err`);
+    return;
+  }
+  rows.push({
+    year:numericYear,
+    downloaded_papers:0,
+    last_attempted_at:'',
+    last_status:'',
+    last_error:'',
+  });
+  setStatus('', '');
+  render();
+}
+
+function addYear(){
+  const input=document.getElementById('year-input');
+  upsertRow(input.value.trim());
+  input.value='';
+}
+
+async function downloadYear(year){
+  setStatus(`Downloading papers for ${year}…`,'');
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}`,{method:'POST'});
+    const d=await r.json();
+    if(!r.ok){
+      setStatus(d.detail||'Download failed.','err');
+      await load();
+      return;
+    }
+    setStatus(`Download complete for ${year}: ${d.downloaded_papers||0} papers.`, 'ok');
+    await load();
+  }catch(e){
+    setStatus('Request failed: '+e.message,'err');
+  }
+}
+
+async function load(){
+  setStatus('Loading…','');
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads`);
+    const d=await r.json();
+    if(!r.ok){
+      setStatus(d.detail||'Failed to load conference paper status.','err');
+      return;
+    }
+    document.getElementById('title').textContent=`Get Papers — ${d.short_name||slug}`;
+    document.getElementById('subtitle').textContent=d.long_name||'Download papers by conference year.';
+    rows=(d.years||[]).map((row)=>({
+      year:Number(row.year),
+      downloaded_papers:Number(row.downloaded_papers||0),
+      last_attempted_at:row.last_attempted_at||'',
+      last_status:row.last_status||'',
+      last_error:row.last_error||'',
+    })).filter((row)=>Number.isInteger(row.year));
+    setStatus('', '');
+    render();
+  }catch(e){
+    setStatus('Failed to load: '+e.message,'err');
+  }
+}
+
+load();
+</script>
+</body>
+</html>

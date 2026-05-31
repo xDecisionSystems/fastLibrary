@@ -6,6 +6,27 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] codex-gpt-5 — add conference Get Papers workflow with per-year status
+
+**Action:** Added a conference paper download flow backed by a new `/getpapers/{slug}` page and new venue API endpoints for fetching per-year download status and triggering downloads. The backend now calls the external searcher API (`SEARCHER_API_BASE_URL`, default `https://seracher.xds-lab.com`), bulk-upserts returned papers, and stores per-year metrics (`downloaded_papers`, `last_attempted_at`, status/error) in venue JSON. Added “Get Papers” actions on conference rows and preserved internal `paper_downloads` metadata during venue create/update writes.
+
+**Files changed:**
+- `api/routes/venues.py` — added paper download helpers and `GET/POST /api/venues/{slug}/paper-downloads...`; preserves internal metadata in create/update
+- `api/main.py` — added `/getpapers/{slug}` page route
+- `api/static/getpapers.html` — new conference download/status page
+- `api/static/conf.html` — added `Get Papers` action button
+- `api/static/venues.html` — added `Get Papers` action button for conference rows
+- `api/static/venue.html` — added conference-only `Get Papers` shortcut link
+- `config/settings.py` — added `searcher_api_base_url` setting
+- `.env.example` — documented `SEARCHER_API_BASE_URL`
+- `.env.dev` — mirrored `SEARCHER_API_BASE_URL`
+- `ARCHITECTURE.md` — documented new endpoints, route, metadata, and config
+- `VERSION.md` — bumped to `paper-library-v0.1.58`
+
+**Decisions:** Implemented external API calls with stdlib `urllib` inside `asyncio.to_thread` to avoid adding dependencies. Kept download metadata as an internal JSON field (`paper_downloads`) instead of altering `VenueRecord` and explicitly preserved it on venue writes so UI edits do not erase operational history.
+
+**Open items:** External API schema is not documented in-repo; current implementation expects a JSON response with either `papers`, `results`, `data`, or a top-level list. If the remote service uses a different path/payload contract, set `SEARCHER_API_BASE_URL` to the correct endpoint and adjust mapping logic.
+
 ## [2026-05-31] codex-gpt-5 — add click-to-sort ascending/descending on venue tables
 
 **Action:** Added client-side table sorting to the three venue listing pages (`/venues`, `/conferences`, `/journals`). Users can now click sortable column headers to toggle ascending/descending order. Sorting is applied after existing search and tag filters so current filter behavior is preserved.
@@ -152,42 +173,6 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 - `AGENT_LOG.md` — prepended this entry
 
 **Decisions:** No max-width constraint applied; tables expand to body padding boundary.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — add venue detail/edit page at /venues/{slug}
-
-**Action:** Added `PUT /api/venues/{slug}` update endpoint. Added `/venues/{slug}` page route in `main.py` serving a new `venue.html`. The page loads the record on arrival, populates all fields as editable inputs (same fields as addconf/addjournal), hides Submission Deadline for journals, and saves via PUT. Updated View buttons in all three listing pages to navigate to `/venues/{slug}` instead of the raw JSON endpoint.
-
-**Files changed:**
-- `api/routes/venues.py` — added `PUT /{slug}` update endpoint
-- `api/main.py` — added `/venues/{slug}` page route
-- `api/static/venue.html` — new detail/edit page
-- `api/static/conf.html` — View link → `/venues/${v.slug}`
-- `api/static/venues.html` — View link → `/venues/${v.slug}`
-- `api/static/journals.html` — View link → `/venues/${v.slug}`
-- `VERSION.md` — bumped to `paper-library-v0.1.49`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** The page derives the slug from `location.pathname` so no extra routing state is needed. Revert button re-fetches from the API, discarding unsaved changes.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — create venues/ directory with correct ownership in deploy scripts
-
-**Action:** Added `venues/` directory creation (owned by `paperuser`) to both deploy scripts. `proxmox_deploy.sh` creates it alongside `pdf/` on fresh installs. `update.sh` ensures it exists with correct ownership on every update, fixing the `[Errno 13] Permission denied: 'venues/dasc.json'` error on existing deployments.
-
-**Files changed:**
-- `deploy/proxmox_deploy.sh` — added `venues/` to data directory creation block
-- `deploy/update.sh` — added data directory ensure step after git pull
-- `VERSION.md` — bumped to `paper-library-v0.1.48`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Placed the fix in `update.sh` so existing LXCs are corrected automatically on next `update.sh` run without manual intervention.
 
 **Open items:** None.
 

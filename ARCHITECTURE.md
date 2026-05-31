@@ -144,6 +144,7 @@ All configuration is loaded from `.env` at import time via `python-dotenv`.
 | `API_HOST`  | No       | `0.0.0.0`                  | uvicorn bind address                |
 | `API_PORT`  | No       | `8000`                     | uvicorn bind port                   |
 | `PDF_DIR`   | No       | `/opt/paper-library/pdfs`  | Local PDF storage root              |
+| `SEARCHER_API_BASE_URL` | No | `https://seracher.xds-lab.com` | External searcher API URL used by conference paper download actions |
 
 Missing `MONGO_URI` or `MONGO_DB` raises `RuntimeError` at startup (fail fast).
 
@@ -203,12 +204,15 @@ Venue API endpoints:
 | GET    | /api/venues/{slug}    | —                    | Full venue JSON or 404 |
 | PUT    | /api/venues/{slug}    | `VenueRecord`        | Updated venue JSON or 404 |
 | DELETE | /api/venues/{slug}    | —                    | `{"deleted": "<slug>"}` or 404 |
+| GET    | /api/venues/{slug}/paper-downloads | —         | Conference year rows with `downloaded_papers`, `last_attempted_at`, and status |
+| POST   | /api/venues/{slug}/paper-downloads/{year} | —    | Triggers external searcher fetch + paper bulk-upsert + per-year download status update |
 | GET    | /api/venues/tags      | —                    | Tag list (`string[]`) |
 | POST   | /api/venues/tags      | `{"tag": "<name>"}`  | Updated tag list (`string[]`) |
 | DELETE | /api/venues/tags/{tag}| —                    | Updated tag list (`string[]`) or 404 |
 
 `VenueRecord` includes `due_date_month` for conference submission cycles. Allowed values are calendar month names (`January` through `December`) or empty string when unknown / not applicable (for example, journals).
 Tags are normalized/tracked in `venues/_tags.json`. Tags cannot be empty, cannot exceed 64 characters, and cannot contain `/` or `\`. Deleting a tag removes it from the tag registry and from every saved venue record.
+Conference download attempt metadata is stored in each venue JSON under `paper_downloads` keyed by year, including `downloaded_papers`, `last_attempted_at`, `last_status`, and `last_error`.
 
 Venue UI routes:
 
@@ -221,3 +225,4 @@ Venue UI routes:
 | GET    | /addjournal  | `addjournal.html` (journal creation form) |
 | GET    | /tags        | `tags.html` (tag management page) |
 | GET    | /venues/{slug} | `venue.html` (venue detail/edit page) |
+| GET    | /getpapers/{slug} | `getpapers.html` (conference paper download status + trigger page) |
