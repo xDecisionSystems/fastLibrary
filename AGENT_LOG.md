@@ -6,6 +6,23 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — remove max-width cap from listing pages
+
+**Action:** Removed `max-width:900px` from `.card` and `.toolbar` in venues.html, conf.html, and journals.html so the tables fill the full page width.
+
+**Files changed:**
+- `api/static/venues.html` — removed max-width from .card and .toolbar
+- `api/static/conf.html` — same
+- `api/static/journals.html` — same
+- `VERSION.md` — bumped to `paper-library-v0.1.50`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** No max-width constraint applied; tables expand to body padding boundary.
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — add venue detail/edit page at /venues/{slug}
 
 **Action:** Added `PUT /api/venues/{slug}` update endpoint. Added `/venues/{slug}` page route in `main.py` serving a new `venue.html`. The page loads the record on arrival, populates all fields as editable inputs (same fields as addconf/addjournal), hides Submission Deadline for journals, and saves via PUT. Updated View buttons in all three listing pages to navigate to `/venues/{slug}` instead of the raw JSON endpoint.
