@@ -54,6 +54,7 @@
         <th>Long Name</th>
         <th>Publisher</th>
         <th>Submission Deadline</th>
+        <th>Links</th>
         <th>Open Access</th>
         <th>Actions</th>
       </tr>
@@ -88,6 +89,7 @@ function renderTable(){
       <td>${esc(v.long_name)}</td>
       <td>${esc(v.publisher||'—')}</td>
       <td>${esc(v.due_date_month||'—')}</td>
+      <td>${v.website_url?`<a href="${esc(v.website_url)}" target="_blank">Website</a>`:'—'}${v.proceedings_url?` · <a href="${esc(v.proceedings_url)}" target="_blank">Proceedings</a>`:''}</td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
         <a href="/api/venues/${v.slug}" target="_blank" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>

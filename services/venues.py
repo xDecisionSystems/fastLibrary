@@ -7,7 +7,7 @@ from config.settings import settings
 
 _VENUE_PREFILL_PROMPT = """\
 You are a research database assistant. Given a conference or journal name, return a JSON object with these exact keys:
-  short_name, long_name, type, publisher, due_date_month, access_url, open_access, notes, download_sources
+  short_name, long_name, type, publisher, due_date_month, website_url, proceedings_url, open_access, notes, download_sources
 
 Rules:
 - short_name: standard acronym (e.g. ICRA, NeurIPS, TRO, IJRR)
@@ -15,7 +15,8 @@ Rules:
 - type: "conference" or "journal"
 - publisher: publishing organization (e.g. IEEE, ACM, Springer)
 - due_date_month: month name (January..December) of the paper/abstract submission deadline. Use the next upcoming deadline if known; otherwise use the most recently known deadline month. Leave "" if unknown or not applicable (e.g. journals).
-- access_url: main conference or journal home page URL; leave "" if not certain — do not guess
+- website_url: most recent official conference or journal home page URL (e.g. https://icra2025.ieee.org); leave "" if not certain — do not guess
+- proceedings_url: publisher's proceedings page URL where papers are archived (e.g. IEEE Xplore, ACM DL, Springer LNCS page for this venue); leave "" if not certain — do not guess
 - open_access: true or false
 - notes: any brief relevant note, else ""
 - download_sources: array of {name, url, notes} objects for bulk download sources (e.g. IEEE Xplore, ACM DL), or []

@@ -60,7 +60,7 @@
   <div class="row"><label>Short name *</label><input id="f-short_name" type="text" placeholder="e.g. T-RO"></div>
   <div class="row"><label>Long name</label><input id="f-long_name" type="text" placeholder="e.g. IEEE Transactions on Robotics"></div>
   <div class="row"><label>Publisher</label><input id="f-publisher" type="text" placeholder="e.g. IEEE"></div>
-  <div class="row"><label>Main page URL</label><input id="f-access_url" type="url" placeholder="https://"></div>
+  <div class="row"><label>Journal Website</label><input id="f-website_url" type="url" placeholder="https://"></div>
 
   <div class="checkbox-row">
     <label>Open access</label>
@@ -105,7 +105,7 @@ function populate(d){
   set('f-short_name',d.short_name||'');
   set('f-long_name',d.long_name||'');
   set('f-publisher',d.publisher||'');
-  set('f-access_url',d.access_url||'');
+  set('f-website_url',d.website_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
@@ -137,7 +137,8 @@ function getForm(){
     type:'journal',
     publisher:document.getElementById('f-publisher').value.trim(),
     due_date_month:'',
-    access_url:document.getElementById('f-access_url').value.trim(),
+    website_url:document.getElementById('f-website_url').value.trim(),
+    proceedings_url:'',
     open_access:document.getElementById('f-open_access').checked,
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
@@ -159,7 +160,7 @@ async function doSave(){
 }
 
 function clearForm(){
-  ['f-short_name','f-long_name','f-publisher','f-access_url','f-notes'].forEach(id=>set(id,''));
+  ['f-short_name','f-long_name','f-publisher','f-website_url','f-notes'].forEach(id=>set(id,''));
   document.getElementById('f-open_access').checked=false;
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');

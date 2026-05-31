@@ -86,7 +86,8 @@ class VenueRecord(BaseModel):
     type: str = ""
     publisher: str = ""
     due_date_month: str = ""
-    access_url: str = ""
+    website_url: str = ""
+    proceedings_url: str = ""
     open_access: bool = False
     notes: str = ""
     download_sources: list[DownloadSource] = Field(default_factory=list)

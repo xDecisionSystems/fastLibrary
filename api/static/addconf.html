@@ -78,7 +78,8 @@
       <option value="December">December</option>
     </select>
   </div>
-  <div class="row"><label>Main page URL</label><input id="f-access_url" type="url" placeholder="https://"></div>
+  <div class="row"><label>Conference Website</label><input id="f-website_url" type="url" placeholder="https://icra2025.ieee.org"></div>
+  <div class="row"><label>Proceedings URL</label><input id="f-proceedings_url" type="url" placeholder="https://ieeexplore.ieee.org/xpl/conhome/…"></div>
 
   <div class="checkbox-row">
     <label>Open access</label>
@@ -124,7 +125,8 @@ function populate(d){
   set('f-long_name',d.long_name||'');
   set('f-publisher',d.publisher||'');
   set('f-due_date_month',d.due_date_month||'');
-  set('f-access_url',d.access_url||'');
+  set('f-website_url',d.website_url||'');
+  set('f-proceedings_url',d.proceedings_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
@@ -156,7 +158,8 @@ function getForm(){
     type:'conference',
     publisher:document.getElementById('f-publisher').value.trim(),
     due_date_month:document.getElementById('f-due_date_month').value,
-    access_url:document.getElementById('f-access_url').value.trim(),
+    website_url:document.getElementById('f-website_url').value.trim(),
+    proceedings_url:document.getElementById('f-proceedings_url').value.trim(),
     open_access:document.getElementById('f-open_access').checked,
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
@@ -178,7 +181,7 @@ async function doSave(){
 }
 
 function clearForm(){
-  ['f-short_name','f-long_name','f-publisher','f-due_date_month','f-access_url','f-notes'].forEach(id=>set(id,''));
+  ['f-short_name','f-long_name','f-publisher','f-due_date_month','f-website_url','f-proceedings_url','f-notes'].forEach(id=>set(id,''));
   document.getElementById('f-open_access').checked=false;
   document.getElementById('sources-body').innerHTML='';
   setStatus('','');

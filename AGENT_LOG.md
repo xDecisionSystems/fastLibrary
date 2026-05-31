@@ -6,6 +6,28 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — add website_url and proceedings_url fields to venues
+
+**Action:** Replaced the single `access_url` field with two URL fields: `website_url` (most recent conference/journal home page) and `proceedings_url` (publisher archive page, conferences only). Updated the LLM prefill prompt with rules for both fields. Updated addconf.html with two URL inputs; addjournal.html with one (website only). Updated all three listing pages with a "Links" column showing clickable Website/Proceedings links. Added backward-compatible fallback in list_venues() so existing JSON files with `access_url` still read correctly.
+
+**Files changed:**
+- `services/models.py` — replaced `access_url` with `website_url` and `proceedings_url`
+- `services/venues.py` — updated prefill prompt keys and rules for both URL fields
+- `api/routes/venues.py` — list payload includes `website_url` (with `access_url` fallback) and `proceedings_url`
+- `api/static/addconf.html` — two URL inputs (Conference Website, Proceedings URL); populate/getForm/clearForm updated
+- `api/static/addjournal.html` — single URL input (Journal Website); `proceedings_url` sent as ""
+- `api/static/conf.html` — "Links" column with Website / Proceedings links
+- `api/static/venues.html` — "Links" column with Website / Proceedings links
+- `api/static/journals.html` — "Website" column replacing unused Submission Deadline column
+- `VERSION.md` — bumped to `paper-library-v0.1.44`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Kept `access_url` fallback in list_venues() so existing venue JSON files are not broken. Journals show a Website column instead of Submission Deadline since that field is n/a for journals.
+
+**Open items:** Existing venue JSON files still store `access_url`; they will display correctly via the fallback but will lose the value if re-saved through the new form (user must re-enter the URL). A one-time migration script could rename the field in all JSON files if needed.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — improve submission deadline prefill and rename label
 
 **Action:** Sharpened the `due_date_month` LLM prompt rule to instruct the model to use the next upcoming submission deadline month, falling back to the most recently known one. Renamed the "Due Date" label to "Submission Deadline" in `addconf.html` and all three listing pages.

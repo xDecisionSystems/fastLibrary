@@ -52,6 +52,8 @@ async def list_venues():
                 "type": d.get("type", ""),
                 "publisher": d.get("publisher", ""),
                 "due_date_month": d.get("due_date_month", ""),
+                "website_url": d.get("website_url", d.get("access_url", "")),
+                "proceedings_url": d.get("proceedings_url", ""),
                 "open_access": d.get("open_access", False),
             })
         except Exception:
