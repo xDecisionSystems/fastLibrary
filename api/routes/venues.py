@@ -30,12 +30,15 @@ async def create_venue(venue: VenueRecord):
     slug = _slug(venue.short_name)
     if not slug:
         raise HTTPException(status_code=422, detail="short_name produced an empty slug")
-    path = _venue_path(slug)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = venue.model_dump()
-    data["slug"] = slug
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    return {"slug": slug, **data}
+    try:
+        path = _venue_path(slug)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = venue.model_dump()
+        data["slug"] = slug
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return {"slug": slug, **data}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("")

@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — fix create_venue returning non-JSON 500 on filesystem error
+
+**Action:** Wrapped the `create_venue` handler body in a try/except so any filesystem exception raises an `HTTPException(500)` with a JSON detail body rather than letting FastAPI emit a plain-text 500 page. The browser-side error "Unexpected token 'I', 'Internal S'..." was caused by the server returning "Internal Server Error" as plain text instead of JSON.
+
+**Files changed:**
+- `api/routes/venues.py` — try/except around file write in `create_venue`
+- `VERSION.md` — bumped to `paper-library-v0.1.47`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Root cause on the deployed server is stale code (old `VenueRecord` without `website_url`/`proceedings_url`). This fix also guards against future filesystem errors. Deployed server must be updated via `deploy/update.sh` to resolve the underlying issue.
+
+**Open items:** Run `deploy/update.sh` on the LXC to deploy the new model fields.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — rename Notes to Description and update prefill prompt
 
 **Action:** Relabeled the Notes field in addconf.html to "Description" with a placeholder guiding the user to enter a brief scope/focus description. Updated the LLM prefill prompt so the `notes` field is filled with a description rather than a generic note.
