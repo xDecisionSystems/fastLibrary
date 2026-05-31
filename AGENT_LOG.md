@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — recompute slug from short_name on venue update and redirect
+
+**Action:** `update_venue` now recomputes the slug from the incoming `short_name` on every save. If the new slug differs from the URL slug, the old file is deleted and the new file is written with the new slug, then the response includes `slug: <new_slug>`. The venue edit page (`venue.html`) detects a slug change in the response and redirects to `/venues/<new_slug>` using `window.location.replace` so the back button does not return to the stale URL. A 409 is returned if the new slug would collide with an existing venue. Also fixed a stale `'_default'` fallback in `getForm()` in `venue.html`.
+
+**Files changed:**
+- `api/routes/venues.py` — `update_venue` recomputes slug, renames file, raises 409 on collision
+- `api/static/venue.html` — `doSave()` redirects on slug change; `getForm()` strategy fallback `'_default'` → `''`
+- `VERSION.md` — bumped to `paper-library-v0.1.69`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used `window.location.replace` (not `assign`) so the stale `/venues/<old-slug>` URL is removed from browser history — pressing back goes to the venues list rather than a 404. `_default_strategy_for_slug` is called with the new slug so auto-selection also reflects the rename.
+
+**Open items:** The existing ATRD Symposium venue on the deployed server (`us_europe_atm_r_d_seminar`) needs to be re-saved after the update is deployed — saving will rename it to `atrd_symposium` and auto-select `strategy: "atrd"`.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — remove _default strategy fallback; blank means no strategy
 
 **Action:** Removed all hardcoded `"_default"` fallbacks throughout the codebase. `VenueRecord.strategy` now defaults to `""`. `_default_strategy_for_slug` returns `""` when no matching file exists. `_build_searcher_request` treats a blank strategy as "no strategy" — skips resolution and falls through to plain POST on `settings.searcher_api_base_url`. `list_venues` returns `""` for venues without a strategy field. Auto-select condition in `create_venue`/`update_venue` now triggers on blank rather than `"_default"`.

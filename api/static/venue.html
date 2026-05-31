@@ -262,7 +262,7 @@ function getForm(){
     proceedings_url:document.getElementById('f-proceedings_url').value.trim(),
     open_access:document.getElementById('f-open_access').checked,
     tags:getSelectedTags(),
-    strategy:document.getElementById('f-strategy').value||'_default',
+    strategy:document.getElementById('f-strategy').value||'',
     notes:document.getElementById('f-notes').value.trim(),
     download_sources:sources,
   };
@@ -276,6 +276,10 @@ async function doSave(){
     const r=await fetch('/api/venues/'+slug,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(!r.ok){setStatus(d.detail||JSON.stringify(d),'err');return;}
+    if(d.slug&&d.slug!==slug){
+      window.location.replace('/venues/'+encodeURIComponent(d.slug));
+      return;
+    }
     document.getElementById('page-title').textContent=d.short_name||slug;
     setStatus('Saved.','');
   }catch(e){setStatus('Request failed: '+e.message,'err');}

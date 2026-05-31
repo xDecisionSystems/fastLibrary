@@ -772,16 +772,26 @@ async def update_venue(slug: str, venue: VenueRecord):
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Venue '{slug}' not found")
     try:
+        new_slug = _slug(venue.short_name)
+        if not new_slug:
+            raise HTTPException(status_code=422, detail="short_name produced an empty slug")
         existing_doc = _load_venue_doc(path)
         data = venue.model_dump()
         data["tags"] = _sanitize_tags(data.get("tags", []))
-        data["slug"] = slug
+        data["slug"] = new_slug
         if not data.get("strategy", "").strip():
-            data["strategy"] = _default_strategy_for_slug(slug)
+            data["strategy"] = _default_strategy_for_slug(new_slug)
         for field in _INTERNAL_VENUE_FIELDS:
             data[field] = existing_doc.get(field, data.get(field, {}))
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        new_path = _venue_path(new_slug)
+        if new_slug != slug and new_path.exists():
+            raise HTTPException(status_code=409, detail=f"Venue '{new_slug}' already exists")
+        new_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        if new_slug != slug:
+            path.unlink()
         return data
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="failed to update venue") from exc
 
