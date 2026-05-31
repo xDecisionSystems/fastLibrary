@@ -6,6 +6,20 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — fix typo in default SEARCHER_API_BASE_URL
+
+**Action:** Corrected "seracher" → "searcher" in the default `SEARCHER_API_BASE_URL` value in `config/settings.py` and `.env.example`. The typo would cause all Get Papers requests to fail silently unless the env var was explicitly set.
+
+**Files changed:**
+- `config/settings.py` — fixed default URL spelling
+- `.env.example` — fixed URL spelling
+- `VERSION.md` — bumped to `paper-library-v0.1.59`
+- `AGENT_LOG.md` — prepended this entry
+
+**Open items:** None.
+
+---
+
 ## [2026-05-31] codex-gpt-5 — add conference Get Papers workflow with per-year status
 
 **Action:** Added a conference paper download flow backed by a new `/getpapers/{slug}` page and new venue API endpoints for fetching per-year download status and triggering downloads. The backend now calls the external searcher API (`SEARCHER_API_BASE_URL`, default `https://seracher.xds-lab.com`), bulk-upserts returned papers, and stores per-year metrics (`downloaded_papers`, `last_attempted_at`, status/error) in venue JSON. Added “Get Papers” actions on conference rows and preserved internal `paper_downloads` metadata during venue create/update writes.
