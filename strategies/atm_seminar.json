@@ -1,0 +1,7 @@
+{
+  "slug": "atm_seminar",
+  "name": "ATM Seminar Strategy",
+  "description": "Strategy for the FAA/Eurocontrol ATM R&D Seminar. Inherits fetch and synthetic DOI generation from the atrd strategy. Papers are scraped from the seminar papers-and-presentations page via /search_atrd_papers; they are not registered with DOI.org so synthetic DOIs are generated.",
+  "extends": "atrd",
+  "steps": []
+}

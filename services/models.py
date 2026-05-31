@@ -19,6 +19,7 @@ class Paper(BaseModel):
     tags: list[str] = Field(default_factory=list)
     title_slug: str = ""
     ingested: bool = False
+    doi_synthetic: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -45,6 +46,7 @@ class PaperUpdate(BaseModel):
     tags: Optional[list[str]] = None
     title_slug: Optional[str] = None
     ingested: Optional[bool] = None
+    doi_synthetic: Optional[bool] = None
 
 
 class UpsertRequest(BaseModel):

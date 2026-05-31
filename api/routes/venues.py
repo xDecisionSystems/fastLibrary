@@ -425,7 +425,18 @@ def _call_searcher(request_spec: dict) -> dict | list:
 async def _search_papers_for_venue(venue_doc: dict, year: int) -> tuple[dict | list, list[dict]]:
     request_spec = _build_searcher_request(venue_doc, year)
     searcher_response = await asyncio.to_thread(_call_searcher, request_spec)
-    return searcher_response, _extract_response_papers(searcher_response)
+    candidates = _extract_response_papers(searcher_response)
+
+    strategy_slug = str(venue_doc.get("strategy") or "").strip()
+    resolved = _resolve_strategy(strategy_slug) if strategy_slug else {}
+    for step in resolved.get("steps", []):
+        if not isinstance(step, dict):
+            continue
+        if step.get("type") == "generate_doi":
+            config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
+            candidates = _apply_generate_doi(candidates, config, venue_doc, year)
+
+    return searcher_response, candidates
 
 
 def _extract_response_papers(response_payload: dict | list) -> list[dict]:
@@ -437,6 +448,43 @@ def _extract_response_papers(response_payload: dict | list) -> list[dict]:
             if isinstance(items, list):
                 return [item for item in items if isinstance(item, dict)]
     return []
+
+
+def _make_title_slug(title: str) -> str:
+    """Return a short lowercase slug from a paper title (max 60 chars)."""
+    slug = re.sub(r"[^\w\s]", "", title.lower())
+    slug = re.sub(r"\s+", "_", slug.strip())
+    return slug[:60].strip("_")
+
+
+def _apply_generate_doi(
+    candidates: list[dict], step_config: dict, venue_doc: dict, year: int
+) -> list[dict]:
+    """For each candidate lacking a DOI, generate a synthetic one and set doi_synthetic=true."""
+    prefix = str(step_config.get("prefix") or "10.0000").strip()
+    raw_ns = str(step_config.get("namespace") or "{conference.slug}").strip()
+    payload = _build_searcher_payload(venue_doc, year)
+    try:
+        namespace = str(_resolve_template(raw_ns, payload, venue_doc, year)).strip()
+    except Exception:
+        namespace = str(venue_doc.get("slug") or "unknown").strip()
+
+    result = []
+    for paper in candidates:
+        if not isinstance(paper, dict):
+            continue
+        if str(paper.get("doi") or paper.get("DOI") or "").strip():
+            result.append(paper)
+            continue
+        title = str(paper.get("title") or "").strip()
+        if not title:
+            continue
+        title_slug = _make_title_slug(title)
+        paper = dict(paper)
+        paper["doi"] = f"{prefix}/{namespace}.{year}.{title_slug}"
+        paper["doi_synthetic"] = True
+        result.append(paper)
+    return result
 
 
 def _coerce_authors(value: object) -> list[str]:
@@ -458,6 +506,12 @@ def _to_paper_model(raw: dict, venue_doc: dict, year: int) -> Paper | None:
     publication_year = raw.get("publication_year", raw.get("year", year))
     if not isinstance(publication_year, int):
         publication_year = year
+    # Map ATRD-specific fields: full_paper_url → pdf_link, section → extra tag
+    pdf_link = str(raw.get("pdf_link") or raw.get("full_paper_url") or "").strip()
+    tags = _coerce_tags(raw.get("tags"))
+    section = str(raw.get("section") or "").strip()
+    if section and section not in tags:
+        tags.append(section)
     try:
         return Paper(
             doi=doi,
@@ -466,14 +520,15 @@ def _to_paper_model(raw: dict, venue_doc: dict, year: int) -> Paper | None:
             publication_year=publication_year,
             source=str(raw.get("source") or "searcher").strip(),
             url=str(raw.get("url") or "").strip(),
-            pdf_link=str(raw.get("pdf_link") or "").strip(),
+            pdf_link=pdf_link,
             pdf_path=str(raw.get("pdf_path") or "").strip(),
             venue=str(raw.get("venue") or venue_doc.get("short_name") or "").strip(),
             snippet=str(raw.get("snippet") or "").strip(),
             is_abstract=bool(raw.get("is_abstract", False)),
-            tags=_coerce_tags(raw.get("tags")),
+            tags=tags,
             title_slug=str(raw.get("title_slug") or "").strip(),
             ingested=bool(raw.get("ingested", False)),
+            doi_synthetic=bool(raw.get("doi_synthetic", False)),
         )
     except Exception:
         return None

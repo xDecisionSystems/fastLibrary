@@ -20,6 +20,17 @@
         "url_source_key": "url",
         "notes": "The url param must be the ATRD symposium papers-and-presentations page for the target year, taken from the venue's download_sources list. Response fields: title, authors, section, is_best_paper, full_paper_url, presentation_url."
       }
+    },
+    {
+      "id": "generate_doi",
+      "name": "Generate Synthetic DOI",
+      "type": "generate_doi",
+      "description": "ATRD papers are not registered with DOI.org. Generate a deterministic synthetic DOI for any paper that lacks one, derived from the venue slug, year, and slugified title.",
+      "config": {
+        "prefix": "10.0000",
+        "namespace": "{conference.slug}",
+        "notes": "Generated DOI format: 10.0000/<namespace>.<year>.<title_slug>. doi_synthetic is set to true on all generated DOIs."
+      }
     }
   ]
 }

@@ -6,6 +6,24 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-05-31] claude-sonnet-4-6 — synthetic DOI generation for ATRD/ATM Seminar papers
+
+**Action:** ATRD Symposium and ATM Seminar papers are not registered with DOI.org. Added a `generate_doi` strategy step type that generates a deterministic synthetic DOI (`10.0000/<namespace>.<year>.<title_slug>`) for any paper missing one, and sets `doi_synthetic: true`. Added `doi_synthetic: bool` field to `Paper` and `PaperUpdate` models. Wired `generate_doi` step execution into `_search_papers_for_venue` so it runs after the fetch step for any strategy that includes it. Updated `_to_paper_model` to pass through `doi_synthetic` and also map ATRD-specific response fields (`full_paper_url` → `pdf_link`, `section` → tag). Added `generate_doi` step to `strategies/atrd.json` and created `strategies/atm_seminar.json` (extends `atrd`, no step overrides needed).
+
+**Files changed:**
+- `services/models.py` — added `doi_synthetic: bool = False` to `Paper`; `doi_synthetic: Optional[bool]` to `PaperUpdate`
+- `api/routes/venues.py` — added `_make_title_slug`, `_apply_generate_doi` helpers; wired `generate_doi` step in `_search_papers_for_venue`; updated `_to_paper_model` for `doi_synthetic`, `full_paper_url`, `section`
+- `strategies/atrd.json` — added `generate_doi` step after `fetch_papers`
+- `strategies/atm_seminar.json` — new strategy extending `atrd` with no overrides
+- `VERSION.md` — bumped to `paper-library-v0.1.70`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Synthetic DOI format `10.0000/<slug>.<year>.<title_slug>` is deterministic so re-running a download is idempotent — same paper always gets same DOI. `section` from ATRD response is appended as a tag so topic classification is preserved. `atm_seminar` extends `atrd` rather than duplicating steps — any future change to ATRD fetch/DOI logic propagates automatically.
+
+**Open items:** After deploying, re-save the ATM Seminar venue in the UI to auto-select `strategy: "atm_seminar"`, then trigger downloads.
+
+---
+
 ## [2026-05-31] claude-sonnet-4-6 — recompute slug from short_name on venue update and redirect
 
 **Action:** `update_venue` now recomputes the slug from the incoming `short_name` on every save. If the new slug differs from the URL slug, the old file is deleted and the new file is written with the new slug, then the response includes `slug: <new_slug>`. The venue edit page (`venue.html`) detects a slug change in the response and redirects to `/venues/<new_slug>` using `window.location.replace` so the back button does not return to the stale URL. A 409 is returned if the new slug would collide with an existing venue. Also fixed a stale `'_default'` fallback in `getForm()` in `venue.html`.
