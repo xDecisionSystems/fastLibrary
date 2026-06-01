@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.35rem;margin-bottom:20px}
+  h2{font-size:1rem;font-weight:600;margin-bottom:8px}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  nav a.active{font-weight:600;color:#222}
+  .card{background:#fff;border-radius:8px;padding:20px;max-width:600px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:16px}
+  .card p{font-size:.875rem;color:#555;margin-bottom:14px;line-height:1.5}
+  .btn{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem;font-weight:500}
+  .btn-danger{background:#cc2222;color:#fff}
+  .btn-danger:hover{background:#a01a1a}
+  .btn-danger:disabled{opacity:.5;cursor:default}
+  #status{margin-top:14px;font-size:.85rem;min-height:20px}
+  #status.ok{color:green}
+  #status.err{color:#b30000}
+  .result-row{display:flex;gap:8px;font-size:.82rem;margin-top:4px;color:#555}
+  .result-label{min-width:180px;color:#888}
+  .result-val{font-weight:600;color:#222}
+  .warn-box{background:#fff8e1;border:1px solid #f0c050;border-radius:6px;padding:10px 14px;font-size:.82rem;color:#7a5800;margin-bottom:14px;line-height:1.5}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All Venues</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/papers-ui">Papers</a>
+  <a href="/tags">Tags</a>
+  <a href="/strategies">Strategies</a>
+  <a href="/admin" class="active">Admin</a>
+</nav>
+
+<h1>Admin</h1>
+
+<div class="card">
+  <h2>Delete All Papers</h2>
+  <p>Permanently deletes all paper records from the database, removes all stored PDF files, clears the search results cache, and resets the downloaded-papers count on every venue.</p>
+  <div class="warn-box">⚠ This action cannot be undone. Papers will need to be re-downloaded from scratch.</div>
+  <button class="btn btn-danger" id="btn-delete" onclick="confirmDelete()">Delete All Papers</button>
+  <div id="status"></div>
+</div>
+
+<script>
+function esc(s){
+  const d=document.createElement('div');
+  d.textContent=String(s||'');
+  return d.innerHTML;
+}
+
+function setStatus(msg, cls=''){
+  const el=document.getElementById('status');
+  el.innerHTML=msg; el.className=cls;
+}
+
+async function confirmDelete(){
+  if(!confirm('This will permanently delete ALL paper records, ALL stored PDFs, and reset download history on every venue.\n\nThis cannot be undone. Continue?')) return;
+  const btn=document.getElementById('btn-delete');
+  btn.disabled=true;
+  btn.textContent='Deleting…';
+  setStatus('Working…','');
+  try{
+    const r=await fetch('/api/admin/delete-all-papers',{method:'POST'});
+    const d=await r.json();
+    if(!r.ok){
+      setStatus('Error: '+esc(d.detail||JSON.stringify(d)),'err');
+      btn.disabled=false;
+      btn.textContent='Delete All Papers';
+      return;
+    }
+    const rows=[
+      ['Papers deleted', d.deleted_papers],
+      ['Search cache entries cleared', d.cleared_cache_entries],
+      ['PDF files deleted', d.deleted_pdfs],
+      ['Task state files deleted', d.deleted_task_states||0],
+      ['Venues reset', d.reset_venues],
+    ].map(([label,val])=>`<div class="result-row"><span class="result-label">${label}</span><span class="result-val">${esc(val)}</span></div>`).join('');
+    const errs=d.errors&&d.errors.length
+      ? `<div style="margin-top:8px;color:#b30000;font-size:.78rem">${d.errors.length} error(s): ${d.errors.slice(0,3).map(e=>`<div>${esc(e)}</div>`).join('')}</div>`
+      : '';
+    setStatus(`<div style="color:green;font-weight:600;margin-bottom:6px">Done.</div>${rows}${errs}`,'ok');
+    btn.textContent='Delete All Papers';
+    btn.disabled=false;
+  }catch(e){
+    setStatus('Request failed: '+esc(e.message),'err');
+    btn.disabled=false;
+    btn.textContent='Delete All Papers';
+  }
+}
+</script>
+</body>
+</html>

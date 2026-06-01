@@ -146,6 +146,18 @@ async def get_search_cache_counts(slug: str, years: list[int]) -> dict[int, int]
     return {doc["year"]: doc["total"] async for doc in cursor}
 
 
+async def delete_all_papers() -> int:
+    coll = get_collection()
+    result = await coll.delete_many({})
+    return result.deleted_count
+
+
+async def clear_search_cache() -> int:
+    coll = get_search_cache_collection()
+    result = await coll.delete_many({})
+    return result.deleted_count
+
+
 async def bulk_upsert(
     papers: list[Paper],
     overwrite_missing_fields: bool = False,

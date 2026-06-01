@@ -6,6 +6,42 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] codex-gpt-5 — review latest Claude admin changes; fix task-state reset and docs drift
+
+**Action:** Reviewed the latest Claude changes (`v0.1.90` ingested inference and `v0.1.91` admin wipe flow). Confirmed `_to_paper_model` now marks papers ingested when `pdf_path` is present. Applied follow-up fixes around the new admin reset path: added task-state file cleanup (`tasks/*.json`) to prevent stale download status after a full wipe, hardened admin UI error rendering with HTML escaping, and synced `ARCHITECTURE.md` with newly added endpoints/routes (`GET /papers/{doi:path}/pdf`, `POST /api/admin/delete-all-papers`, `/admin` page route).
+
+**Files changed:**
+- `api/routes/admin.py` — removed unused imports; delete persisted task-state JSON files; include `deleted_task_states` in response
+- `api/static/admin.html` — added escaping helper for rendered errors; show deleted task-state count in results
+- `ARCHITECTURE.md` — documented stored-PDF GET endpoint, admin API endpoint, and `/admin` UI route
+- `VERSION.md` — bumped to `paper-library-v0.1.92`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Kept admin endpoint semantics additive (no breaking contract changes): task-state cleanup is included in the same operation and returned as an additional count field.
+
+**Open items:** None.
+
+---
+
+## [2026-06-01] claude-sonnet-4-6 — add admin page with delete-all-papers action
+
+**Action:** Added an Admin page at `/admin` with a single destructive action: Delete All Papers. The action deletes all paper records from MongoDB, clears the `paper_search_cache` collection, removes all `.pdf` files from `PDF_DIR`, and resets `paper_downloads` to `{}` on every venue JSON file. A confirmation dialog is shown before execution. The result panel shows counts for each operation. Added `POST /api/admin/delete-all-papers` endpoint in a new `api/routes/admin.py` router. Added `delete_all_papers` and `clear_search_cache` helpers to `services/mongo.py`. Registered the admin router at `/api/admin` in `main.py` and added Admin nav link to all pages.
+
+**Files changed:**
+- `api/routes/admin.py` — new admin router with `delete-all-papers` endpoint
+- `services/mongo.py` — added `delete_all_papers`, `clear_search_cache` helpers
+- `api/main.py` — registered admin router; added `/admin` page route
+- `api/static/admin.html` — new admin page
+- `api/static/{conf,venues,journals,venue,addconf,addjournal,papers,tags,strategies}.html` — Admin nav link added
+- `VERSION.md` — bumped to `paper-library-v0.1.91`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** PDF deletion walks `PDF_DIR.rglob("*.pdf")` so it catches files in any subdirectory. Venue `paper_downloads` is reset to `{}` rather than deleted so the year entries reappear when the venue is re-saved. Errors are collected per operation and returned in the response rather than aborting early.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — mark paper ingested=True when pdf_path is set
 
 **Action:** ATRD papers were being upserted with `ingested=False` because `_to_paper_model` defaulted to `raw.get("ingested", False)` and the ATRD searcher response never includes an `ingested` field. Papers with a stored PDF are by definition ingested. Fixed by treating a non-empty `pdf_path` as implicit evidence of ingestion: `ingested=bool(raw.get("ingested") or pdf_path)`.
@@ -127,58 +163,6 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 - `AGENT_LOG.md` — prepended this entry
 
 **Decisions:** No functional change — all routes and prefixes remain the same. Router order change is cosmetic only; FastAPI registration order only matters for path conflicts, which don't exist here.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] codex-gpt-5 — restore papers API backward compatibility and isolate UI route
-
-**Action:** Reviewed the most recent Claude change that introduced `papers.html` and moved the papers API to `/api/papers`. Implemented a compatibility fix to preserve existing `/papers` API clients while keeping the new browser page. `api/main.py` now mounts the papers router at both `/papers` (legacy/default) and `/api/papers` (alias), and moves the HTML page route to `GET /papers-ui` to avoid path collisions. Updated all navigation links to point to `/papers-ui`, updated architecture docs with the dual-prefix API note and missing UI routes, and ran syntax checks.
-
-**Files changed:**
-- `api/main.py` — mounted papers router on `/papers` and `/api/papers`; moved page route `/papers` → `/papers-ui`
-- `api/static/conf.html`, `venues.html`, `journals.html`, `venue.html`, `addconf.html`, `addjournal.html`, `strategies.html`, `papers.html` — navigation links updated to `/papers-ui`
-- `ARCHITECTURE.md` — documented dual papers API prefixes and added missing UI routes
-- `VERSION.md` — bumped to `paper-library-v0.1.82`
-- `AGENT_LOG.md` — prepended this entry and archived entries beyond 10 most recent
-- `history/2026-05.md` — received archived AGENT_LOG entries
-
-**Decisions:** Kept `/api/papers` as a first-class alias so the new UI remains unchanged, while restoring `/papers` for backwards compatibility with existing API clients and scripts.
-
-**Open items:** Existing bookmarks to `/papers` (HTML page path from the Claude change) should switch to `/papers-ui`; `/papers` is now reserved for JSON API responses.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — add /papers page with search, filters, and detail panel
-
-**Action:** Created `api/static/papers.html` — a paginated, searchable list of all papers backed by `GET /api/papers`. Filters: title (full-text), year range, downloaded status, tags. Columns: Paper (title + authors + DOI), Tags, Year, Venue, Downloaded. Clicking a title opens a detail panel showing all fields including BibTeX with a copy button. Added `GET /papers` page route to `main.py`. Moved papers API prefix from `/papers` to `/api/papers` so the page URL `/papers` is unambiguous; updated `scripts/import_searcher.py` to use the new prefix. Added Papers nav link to all existing pages.
-
-**Files changed:**
-- `api/static/papers.html` — new papers listing page
-- `api/main.py` — `/papers` page route added; papers API prefix changed to `/api/papers`
-- `scripts/import_searcher.py` — bulk URL updated to `/api/papers/bulk`
-- `api/static/conf.html`, `venues.html`, `journals.html`, `venue.html`, `addconf.html`, `addjournal.html`, `tags.html`, `strategies.html` — Papers nav link added
-- `VERSION.md` — bumped to `paper-library-v0.1.81`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** API moved to `/api/papers` to match the pattern used by venues and strategies. Client-side sort on top of paginated results since the API doesn't support server-side ordering. `venue_long` preferred over `venue` in the Venue column. Detail panel shows BibTeX inline with clipboard copy button.
-
-**Open items:** `/papers` prefix change is breaking for any external client using the old prefix.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — fix cancelled status persisted as error in venue JSON
-
-**Action:** Reviewed codex's cancel-race and pdf_error fixes — both correct and kept as-is. Fixed the one remaining issue codex flagged as an open item: `_persist_download_stats` was mapping all non-empty error strings to `last_status: "error"`, so cancelled downloads showed as errors in the venue JSON and on the UI status column. Added `"cancelled"` as a recognised value in `_normalize_download_stats` (previously stripped to `""`), added it to `_persist_download_stats` detection logic, and added a `status-cancelled` CSS class (grey) to `venue.html` so it renders distinctly from both success and error.
-
-**Files changed:**
-- `api/routes/venues.py` — `_normalize_download_stats` accepts `"cancelled"`; `_persist_download_stats` sets `last_status: "cancelled"` when error is `"cancelled by user"`
-- `api/static/venue.html` — `renderPapers` maps `"cancelled"` to `status-cancelled` class; CSS `.status-cancelled` added (grey)
-- `VERSION.md` — bumped to `paper-library-v0.1.80`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** `"cancelled by user"` string comparison is intentional — it's the only string passed by the two cancel paths in `_run_download_task`. Avoids adding a new enum or constant for a single call site.
 
 **Open items:** None.
 

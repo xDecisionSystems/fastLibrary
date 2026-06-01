@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.routes import admin as admin_router
 from api.routes import health as health_router
 from api.routes import papers as papers_router
 from api.routes import strategies as strategies_router
@@ -31,6 +32,7 @@ app = FastAPI(
 )
 
 app.include_router(health_router.router)
+app.include_router(admin_router.router, prefix="/api/admin")
 app.include_router(papers_router.router, prefix="/api/papers")
 app.include_router(papers_router.router, prefix="/papers")  # legacy alias
 app.include_router(venues_router.router, prefix="/api/venues")
@@ -92,6 +94,11 @@ async def page_strategies():
 @app.get("/strategies/{slug}", include_in_schema=False)
 async def page_strategy(slug: str):
     return FileResponse(_STATIC_DIR / "strategy.html")
+
+
+@app.get("/admin", include_in_schema=False)
+async def page_admin():
+    return FileResponse(_STATIC_DIR / "admin.html")
 
 
 @app.get("/", include_in_schema=False)

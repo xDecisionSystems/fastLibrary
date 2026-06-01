@@ -72,6 +72,7 @@ RAG System        ──GET  /papers?ingested=false──►  │
 | POST   | /papers/bulk             | `BulkUpsertRequest` (`papers`, `overwrite_missing_fields`, `overwrite_duplicate_doi`) | `{"upserted": N, "modified": N, "errors": []}` |
 | GET    | /papers                  | query params (see below)   | `{"total": N, "skip": N, "limit": N, "results": [...]}` |
 | POST   | /papers/{doi:path}/pdf   | multipart `file`           | `{"doi": "...", "pdf_path": "...", "size_bytes": N}` or 404 |
+| GET    | /papers/{doi:path}/pdf   | optional `download=true` query | Streams stored PDF inline (`download=false`) or as attachment (`download=true`) |
 | GET    | /papers/{doi:path}       | —                          | Full paper document or 404                    |
 | PATCH  | /papers/{doi:path}       | `PaperUpdate`              | Updated paper document or 404                 |
 | DELETE | /papers/{doi:path}       | —                          | `{"deleted": true}` or 404                    |
@@ -249,6 +250,12 @@ Strategy API endpoints:
 | GET    | /api/strategies/{slug}/resolved | —          | Inheritance-resolved strategy |
 | DELETE | /api/strategies/{slug}       | —             | Deletes strategy (409 if any venue still references it) |
 
+Admin API endpoints:
+
+| Method | Path                         | Body / Params | Response |
+|--------|------------------------------|---------------|----------|
+| POST   | /api/admin/delete-all-papers | —             | Deletes all paper docs, clears `paper_search_cache`, removes local PDF files and task-state files, resets venue `paper_downloads`, and returns operation counts plus errors |
+
 Venue UI routes:
 
 | Method | Path         | Response |
@@ -262,5 +269,6 @@ Venue UI routes:
 | GET    | /papers-ui   | `papers.html` (paper browser with filters/detail panel) |
 | GET    | /strategies  | `strategies.html` (strategy list/create page) |
 | GET    | /strategies/{slug} | `strategy.html` (strategy detail/edit page) |
+| GET    | /admin       | `admin.html` (destructive maintenance actions) |
 | GET    | /venues/{slug} | `venue.html` (venue detail/edit page; conference pages include embedded paper search/download section) |
 | GET    | /getpapers/{slug} | Legacy route; HTTP 301 redirect to `/venues/{slug}` |
