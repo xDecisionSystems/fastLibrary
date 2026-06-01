@@ -131,7 +131,7 @@ def _normalize_download_stats(data: object) -> dict[str, dict]:
             downloaded = 0
         last_attempted_at = str(entry.get("last_attempted_at") or "").strip()
         last_status = str(entry.get("last_status") or "").strip().lower()
-        if last_status not in {"success", "error"}:
+        if last_status not in {"success", "error", "cancelled"}:
             last_status = ""
         last_error = str(entry.get("last_error") or "").strip()
         normalized[str(year)] = {
@@ -918,7 +918,7 @@ def _persist_download_stats(
     stats[str(year)] = {
         "downloaded_papers": downloaded,
         "last_attempted_at": attempted_at,
-        "last_status": "success" if not error else "error",
+        "last_status": "cancelled" if error == "cancelled by user" else ("success" if not error else "error"),
         "last_error": error,
     }
     doc["paper_downloads"] = stats

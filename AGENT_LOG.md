@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — fix cancelled status persisted as error in venue JSON
+
+**Action:** Reviewed codex's cancel-race and pdf_error fixes — both correct and kept as-is. Fixed the one remaining issue codex flagged as an open item: `_persist_download_stats` was mapping all non-empty error strings to `last_status: "error"`, so cancelled downloads showed as errors in the venue JSON and on the UI status column. Added `"cancelled"` as a recognised value in `_normalize_download_stats` (previously stripped to `""`), added it to `_persist_download_stats` detection logic, and added a `status-cancelled` CSS class (grey) to `venue.html` so it renders distinctly from both success and error.
+
+**Files changed:**
+- `api/routes/venues.py` — `_normalize_download_stats` accepts `"cancelled"`; `_persist_download_stats` sets `last_status: "cancelled"` when error is `"cancelled by user"`
+- `api/static/venue.html` — `renderPapers` maps `"cancelled"` to `status-cancelled` class; CSS `.status-cancelled` added (grey)
+- `VERSION.md` — bumped to `paper-library-v0.1.80`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** `"cancelled by user"` string comparison is intentional — it's the only string passed by the two cancel paths in `_run_download_task`. Avoids adding a new enum or constant for a single call site.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — fix async download cancel race and surface PDF step errors
 
 **Action:** Reviewed the latest Claude async-download changes and fixed two regressions in task execution. First, cancel requests could be overwritten by the worker loop (`running` status rewrites), making cancel effectively unreliable mid-paper; added cancellation checks both before and after per-paper step execution, preserving cancelled state and persisting partial stats. Second, `download_pdf` failures were stored only as transient `pdf_error` fields and never surfaced in task/error status; now these per-paper failures are appended to task errors so final status can correctly become `partial/error` instead of silent `success`. Also updated `ARCHITECTURE.md` to document async `/start|/status|/cancel` endpoints and `tasks/` task-state files.

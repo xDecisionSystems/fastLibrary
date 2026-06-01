@@ -51,6 +51,7 @@
   .papers-table tr:last-child td{border-bottom:none}
   .status-ok{color:green;font-weight:600}
   .status-err{color:#b30000;font-weight:600}
+  .status-cancelled{color:#888;font-weight:600}
   #papers-empty{display:none;padding:16px 4px;color:#777;font-size:.9rem}
   #papers-status{margin-top:12px;font-size:.86rem;min-height:20px}
   #papers-status.err{color:#b30000}
@@ -374,7 +375,7 @@ function renderPapers(){
   paperRows.forEach((r)=>{
     const tr=document.createElement('tr');
     const running=!!_pollTimers[r.year];
-    const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':'');
+    const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':(r.last_status==='cancelled'?'status-cancelled':''));
     const statusLabel=r.last_status?r.last_status.toUpperCase():'—';
     const foundLabel=Number.isFinite(r.found_papers)?String(r.found_papers):'—';
     const errorSuffix=r.last_error?`<div style="font-size:.74rem;color:#777">${esc(r.last_error)}</div>`:'';
