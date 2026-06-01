@@ -42,7 +42,8 @@
         "method": "POST",
         "base_url": "https://searcher.xds-lab.com/aev/search",
         "dest_subdir": "{conference.slug}/{year}",
-        "notes": "Response is application/pdf binary. Filename derived from title_slug. Skips papers that already have a pdf_path set."
+        "concurrency": 5,
+        "notes": "Response is application/pdf binary. Filename derived from title_slug. Skips papers that already have a pdf_path set. concurrency controls max simultaneous PDF downloads."
       }
     },
     {

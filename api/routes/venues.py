@@ -533,6 +533,75 @@ def _apply_download_pdfs(
     return updated
 
 
+async def _apply_download_pdfs_parallel(
+    candidates: list[dict],
+    step_config: dict,
+    venue_doc: dict,
+    year: int,
+    on_progress: object = None,
+) -> list[dict]:
+    """Download PDFs concurrently up to `concurrency` at a time.
+
+    on_progress: optional async callable(completed_count) called after each paper finishes.
+    """
+    concurrency = int(step_config.get("concurrency") or 1)
+    if concurrency < 1:
+        concurrency = 1
+
+    base_url = str(step_config.get("base_url") or settings.searcher_api_base_url).strip()
+    endpoint = str(step_config.get("endpoint") or "").strip()
+    download_url = _build_searcher_url(base_url, endpoint)
+    if not download_url:
+        raise RuntimeError("download_pdf step has no resolvable URL")
+
+    payload = _build_searcher_payload(venue_doc, year)
+    raw_subdir = str(step_config.get("dest_subdir") or "{conference.slug}/{year}").strip()
+    try:
+        subdir = str(_resolve_template(raw_subdir, payload, venue_doc, year))
+    except Exception:
+        subdir = f"{venue_doc.get('slug', 'unknown')}/{year}"
+
+    dest_dir = PDF_DIR / subdir
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    semaphore = asyncio.Semaphore(concurrency)
+    results: list[dict | None] = [None] * len(candidates)
+
+    async def _download_one(index: int, paper: dict) -> None:
+        if not isinstance(paper, dict):
+            results[index] = paper
+            return
+        if str(paper.get("pdf_path") or "").strip():
+            results[index] = paper
+            if on_progress:
+                await on_progress(1)
+            return
+        title_slug = str(paper.get("title_slug") or "").strip()
+        if not title_slug:
+            title_slug = _make_title_slug(str(paper.get("title") or ""))
+        if not title_slug:
+            results[index] = paper
+            if on_progress:
+                await on_progress(1)
+            return
+        dest_path = dest_dir / f"{title_slug}.pdf"
+        async with semaphore:
+            try:
+                pdf_bytes = await asyncio.to_thread(_call_pdf_download, download_url, paper)
+                dest_path.write_bytes(pdf_bytes)
+                paper = dict(paper)
+                paper["pdf_path"] = str(dest_path)
+            except Exception as exc:
+                paper = dict(paper)
+                paper["pdf_error"] = str(exc)
+        results[index] = paper
+        if on_progress:
+            await on_progress(1)
+
+    await asyncio.gather(*[_download_one(i, p) for i, p in enumerate(candidates)])
+    return [r for r in results if r is not None]
+
+
 async def _search_papers_for_venue(
     venue_doc: dict, year: int, download_pdfs: bool = False
 ) -> tuple[dict | list, list[dict]]:
@@ -795,52 +864,85 @@ async def _run_download_task(slug: str, year: int) -> None:
     downloaded = 0
     errors: list[str] = []
 
-    for i, candidate in enumerate(candidates):
-        task = _read_task(slug, year)
-        if task.get("status") == "cancelled":
-            _write_task(
-                slug,
-                year,
-                {
-                    "status": "cancelled",
-                    "total": total,
-                    "downloaded": downloaded,
-                    "errors": errors,
-                    "started_at": attempted_at,
-                    "finished_at": task.get("finished_at") or _utc_now_iso(),
-                },
-            )
-            _persist_download_stats(
-                slug,
-                year,
-                doc,
-                path,
-                attempted_at,
-                downloaded,
-                "cancelled by user",
-            )
+    # Detect if any download_pdf step requests parallel execution.
+    pdf_step = next(
+        (s for s in steps if isinstance(s, dict) and s.get("type") == "download_pdf"), None
+    )
+    pdf_config = pdf_step.get("config", {}) if pdf_step and isinstance(pdf_step.get("config"), dict) else {}
+    parallel = int(pdf_config.get("concurrency") or 1) > 1
+
+    def _check_cancelled() -> bool:
+        return _read_task(slug, year).get("status") == "cancelled"
+
+    def _write_cancelled() -> None:
+        _write_task(slug, year, {
+            "status": "cancelled", "total": total, "downloaded": downloaded,
+            "errors": errors, "started_at": attempted_at, "finished_at": _utc_now_iso(),
+        })
+        _persist_download_stats(slug, year, doc, path, attempted_at, downloaded, "cancelled by user")
+
+    if parallel:
+        # ── parallel path ─────────────────────────────────────────────────────
+        # Phase 1: apply all pre-download steps (generate_doi) to all candidates.
+        paper_batch = list(candidates)
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
+            stype = step.get("type")
+            if stype == "generate_doi":
+                try:
+                    paper_batch = _apply_generate_doi(paper_batch, config, doc, year)
+                except Exception as exc:
+                    errors.append(str(exc))
+            elif stype == "download_pdf":
+                break  # stop before download; handled below
+
+        if _check_cancelled():
+            _write_cancelled()
             return
 
-        paper_list = [candidate]
+        # Phase 2: parallel PDF downloads with live progress.
+        pdf_done = 0
 
+        async def _on_pdf_progress(_: int) -> None:
+            nonlocal pdf_done
+            pdf_done += 1
+            _write_task(slug, year, {
+                "status": "running", "total": total, "downloaded": pdf_done,
+                "errors": errors, "started_at": attempted_at,
+            })
+
+        try:
+            paper_batch = await _apply_download_pdfs_parallel(
+                paper_batch, pdf_config, doc, year, on_progress=_on_pdf_progress
+            )
+        except Exception as exc:
+            errors.append(str(exc))
+
+        if _check_cancelled():
+            _write_cancelled()
+            return
+
+        # Phase 3: post-download steps (build_bibtex, upsert_papers) per paper.
         upsert_after_steps = True
         for step in steps:
             if not isinstance(step, dict):
                 continue
             config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
             stype = step.get("type")
+            if stype in ("generate_doi", "download_pdf"):
+                continue  # already done
             try:
-                if stype == "generate_doi":
-                    paper_list = _apply_generate_doi(paper_list, config, doc, year)
-                elif stype == "download_pdf":
-                    paper_list = await asyncio.to_thread(
-                        _apply_download_pdfs, paper_list, config, doc, year
-                    )
-                elif stype == "build_bibtex":
-                    paper_list = _apply_build_bibtex(paper_list, config, doc, year)
+                if stype == "build_bibtex":
+                    paper_batch = _apply_build_bibtex(paper_batch, config, doc, year)
                 elif stype == "bulk_upsert":
                     overwrite = bool(config.get("overwrite_missing_fields", False))
-                    for raw in paper_list:
+                    for raw in paper_batch:
+                        pdf_error = str(raw.get("pdf_error") or "").strip()
+                        if pdf_error:
+                            ref = str(raw.get("doi") or raw.get("title") or "unknown")
+                            errors.append(f"{ref}: {pdf_error}")
                         paper = _to_paper_model(raw, doc, year)
                         if paper is None:
                             continue
@@ -851,20 +953,14 @@ async def _run_download_task(slug: str, year: int) -> None:
                             errors.append(f"{raw.get('doi', '?')}: {exc}")
                     upsert_after_steps = False
             except Exception as exc:
-                if stype != "bulk_upsert":
-                    errors.append(str(exc))
-
-        # download_pdf failures are captured on paper dicts as pdf_error; surface them in task status.
-        for raw in paper_list:
-            if not isinstance(raw, dict):
-                continue
-            pdf_error = str(raw.get("pdf_error") or "").strip()
-            if pdf_error:
-                paper_ref = str(raw.get("doi") or raw.get("title_slug") or raw.get("title") or "unknown")
-                errors.append(f"{paper_ref}: {pdf_error}")
+                errors.append(str(exc))
 
         if upsert_after_steps:
-            for raw in paper_list:
+            for raw in paper_batch:
+                pdf_error = str(raw.get("pdf_error") or "").strip()
+                if pdf_error:
+                    ref = str(raw.get("doi") or raw.get("title") or "unknown")
+                    errors.append(f"{ref}: {pdf_error}")
                 paper = _to_paper_model(raw, doc, year)
                 if paper is None:
                     continue
@@ -874,35 +970,78 @@ async def _run_download_task(slug: str, year: int) -> None:
                 except Exception as exc:
                     errors.append(f"{raw.get('doi', '?')}: {exc}")
 
-        task = _read_task(slug, year)
-        if task.get("status") == "cancelled":
-            _write_task(
-                slug,
-                year,
-                {
-                    "status": "cancelled",
-                    "total": total,
-                    "downloaded": downloaded,
-                    "errors": errors,
-                    "started_at": attempted_at,
-                    "finished_at": task.get("finished_at") or _utc_now_iso(),
-                },
-            )
-            _persist_download_stats(
-                slug,
-                year,
-                doc,
-                path,
-                attempted_at,
-                downloaded,
-                "cancelled by user",
-            )
-            return
-
         _write_task(slug, year, {
             "status": "running", "total": total, "downloaded": downloaded,
             "errors": errors, "started_at": attempted_at,
         })
+
+    else:
+        # ── sequential path (original behaviour) ─────────────────────────────
+        for candidate in candidates:
+            if _check_cancelled():
+                _write_cancelled()
+                return
+
+            paper_list = [candidate]
+            upsert_after_steps = True
+
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
+                stype = step.get("type")
+                try:
+                    if stype == "generate_doi":
+                        paper_list = _apply_generate_doi(paper_list, config, doc, year)
+                    elif stype == "download_pdf":
+                        paper_list = await asyncio.to_thread(
+                            _apply_download_pdfs, paper_list, config, doc, year
+                        )
+                    elif stype == "build_bibtex":
+                        paper_list = _apply_build_bibtex(paper_list, config, doc, year)
+                    elif stype == "bulk_upsert":
+                        overwrite = bool(config.get("overwrite_missing_fields", False))
+                        for raw in paper_list:
+                            paper = _to_paper_model(raw, doc, year)
+                            if paper is None:
+                                continue
+                            try:
+                                await mongo.upsert_paper(paper, overwrite_missing_fields=overwrite)
+                                downloaded += 1
+                            except Exception as exc:
+                                errors.append(f"{raw.get('doi', '?')}: {exc}")
+                        upsert_after_steps = False
+                except Exception as exc:
+                    if stype != "bulk_upsert":
+                        errors.append(str(exc))
+
+            for raw in paper_list:
+                if not isinstance(raw, dict):
+                    continue
+                pdf_error = str(raw.get("pdf_error") or "").strip()
+                if pdf_error:
+                    ref = str(raw.get("doi") or raw.get("title_slug") or raw.get("title") or "unknown")
+                    errors.append(f"{ref}: {pdf_error}")
+
+            if upsert_after_steps:
+                for raw in paper_list:
+                    paper = _to_paper_model(raw, doc, year)
+                    if paper is None:
+                        continue
+                    try:
+                        await mongo.upsert_paper(paper, overwrite_missing_fields=False)
+                        downloaded += 1
+                    except Exception as exc:
+                        errors.append(f"{raw.get('doi', '?')}: {exc}")
+
+            if _check_cancelled():
+                _write_cancelled()
+                return
+
+            _write_task(slug, year, {
+                "status": "running", "total": total, "downloaded": downloaded,
+                "errors": errors, "started_at": attempted_at,
+            })
 
     final_status = "success" if not errors else "partial"
     _write_task(slug, year, {

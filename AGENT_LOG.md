@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — parallel PDF downloads for ATRD via concurrency strategy config
+
+**Action:** Added parallel PDF download support controlled by `concurrency` in the strategy's `download_pdf` step config. Added `_apply_download_pdfs_parallel` — an async function that dispatches all PDF downloads concurrently using `asyncio.gather` with an `asyncio.Semaphore` to cap simultaneous requests. An `on_progress` callback fires after each paper completes so the task counter updates in real time. `_run_download_task` now detects `concurrency > 1` and takes a parallel path: phase 1 applies all pre-download steps (generate_doi) to the full batch; phase 2 runs parallel downloads; phase 3 applies post-download steps (build_bibtex, upsert_papers) sequentially. The sequential path (concurrency ≤ 1) is preserved unchanged. Set `concurrency: 5` in `strategies/atrd.json`.
+
+**Files changed:**
+- `api/routes/venues.py` — `_apply_download_pdfs_parallel` with semaphore and progress callback; `_run_download_task` parallel/sequential branching
+- `strategies/atrd.json` — `concurrency: 5` added to `download_pdf` step config
+- `VERSION.md` — bumped to `paper-library-v0.1.85`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Concurrency of 5 is conservative — Google Drive can throttle; raise if the searcher handles it well. Cancel checks remain between phases so a cancel mid-download is still honoured. Progress counter in the parallel path increments as each PDF finishes, so the UI "Downloading X/Y" stays live even with batch execution.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — fix 500 on download start caused by missing tasks/ directory
 
 **Action:** Download start was returning plain-text "Internal Server Error" because `_write_task` was calling `TASKS_DIR.mkdir` on a directory that didn't exist on the deployed server (the deploy scripts were updated but `update.sh` hadn't been run yet). The OSError propagated unhandled out of `start_download` as a non-JSON 500. Fixed by: (1) creating all runtime directories (`PDF_DIR`, `VENUES_DIR`, `STRATEGIES_DIR`, `TASKS_DIR`) in the app lifespan on startup — server now self-heals on restart; (2) wrapping `_write_task` to re-raise as `RuntimeError`; (3) catching that in `start_download` and raising `HTTPException(500)` so the client always gets JSON.
