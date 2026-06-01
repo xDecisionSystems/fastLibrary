@@ -306,8 +306,11 @@ function openDetail(idx){
   html+=row('Source', esc(p.source));
   html+=row('Tags', tags);
   if(p.url) html+=row('URL', `<a href="${esc(p.url)}" target="_blank">${esc(p.url)}</a>`);
-  if(p.pdf_link) html+=row('PDF Link', `<a href="${esc(p.pdf_link)}" target="_blank">Open PDF</a>`);
-  if(p.pdf_path) html+=row('PDF Path', `<span class="mono">${esc(p.pdf_path)}</span>`);
+  if(p.pdf_link) html+=row('External PDF Link', `<a href="${esc(p.pdf_link)}" target="_blank">Open PDF</a>`);
+  if(p.pdf_path){
+    const pdfUrl=_pdfUrl(idx,false);
+    html+=row('PDF Link', `<a href="${esc(pdfUrl)}" target="_blank">${esc(p.pdf_path.split('/').pop())}</a>`);
+  }
   html+=row('Ingested', p.ingested?'Yes':'No');
   if(p.doi_synthetic) html+=row('DOI', '<span style="color:#888;font-size:.8rem">Synthetic (not registered with doi.org)</span>');
   if(p.is_best_paper) html+=row('Award', '<span style="color:#b8860b;font-weight:600">⭐ Best Paper</span>');

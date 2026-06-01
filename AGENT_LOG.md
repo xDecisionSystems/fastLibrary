@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — rename PDF Link to External PDF Link; add server PDF Link in detail panel
+
+**Action:** In the paper detail panel, renamed `"PDF Link"` (the original `pdf_link` field from the searcher) to `"External PDF Link"`. Added a new `"PDF Link"` row that shows the filename as a clickable link to the locally stored PDF via `GET /api/papers/{doi}/pdf` — only shown when `pdf_path` is set.
+
+**Files changed:**
+- `api/static/papers.html` — detail panel: `pdf_link` row label → `"External PDF Link"`; new `"PDF Link"` row linking to `/api/papers/{doi}/pdf`
+- `VERSION.md` — bumped to `paper-library-v0.1.88`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Used `_pdfUrl(idx, false)` (already in scope inside `openDetail`) to build the server PDF URL, keeping the same DOI encoding logic as the icon buttons.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — add PDF view/download icons to papers page
 
 **Action:** Added a new actions column (eyeglass 🔍 / download ⬇ icons) to the left of Paper information on the papers page. Clicking 🔍 opens the stored PDF inline in a new tab; clicking ⬇ triggers a browser file download. Icons are disabled (greyed out) when no PDF is stored. Added `GET /api/papers/{doi:path}/pdf` endpoint to `papers.py` that serves the file from `pdf_path` with `Content-Disposition: inline` (view) or `attachment` (download) based on a `?download=true` query param. Removed the clickable link styling from the paper title.
