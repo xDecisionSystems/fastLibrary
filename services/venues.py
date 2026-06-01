@@ -47,7 +47,11 @@ def generate_pdf_filename(
     year: int | str,
 ) -> str | None:
     """Call Azure OpenAI to generate a clean PDF filename. Returns None on failure."""
-    if not settings.azure_openai_endpoint or not settings.azure_openai_api_key:
+    if (
+        not settings.azure_openai_endpoint
+        or not settings.azure_openai_api_key
+        or not settings.chat_deployment_name
+    ):
         return None
     first_author = authors[0] if authors else ""
     user_content = f"Title: {title}\nFirst author: {first_author}\nVenue: {venue}\nYear: {year}"

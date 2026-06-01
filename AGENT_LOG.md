@@ -6,6 +6,25 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] codex-gpt-5 — review latest Claude filename/bulk-download changes; prevent PDF overwrite collisions
+
+**Action:** Reviewed the newest Claude entries (`v0.1.93`–`v0.1.96`) covering LLM PDF filenames and venue-level Search All/Download All controls. Applied follow-up fixes where needed. In `download_pdf`, LLM-generated names could collide and silently overwrite files (especially in parallel mode); added deterministic destination reservation with collision-resistant suffixing and pre-planned per-paper paths so parallel writes cannot race onto the same filename. Also serialized filename planning in the parallel path (instead of unbounded per-paper LLM calls), added a missing `chat_deployment_name` guard in `generate_pdf_filename`, fixed cancelled-status styling in live task polling (`status-cancelled` instead of error red), and updated `ARCHITECTURE.md` to document filename generation + de-dup behavior.
+
+**Files changed:**
+- `api/routes/venues.py` — added filename identity and destination reservation helpers; applied deterministic de-dup in sequential and parallel PDF download paths
+- `services/venues.py` — `generate_pdf_filename` now requires configured `chat_deployment_name` before calling Azure OpenAI
+- `api/static/venue.html` — `_applyTaskToRow` now maps `cancelled` to `status-cancelled`
+- `ARCHITECTURE.md` — documented LLM filename generation and batch de-dup guarantees
+- `VERSION.md` — bumped to `paper-library-v0.1.97`
+- `AGENT_LOG.md` — prepended this entry and archived entries beyond 10 most recent
+- `history/2026-06.md` — received archived AGENT_LOG entries
+
+**Decisions:** Kept filename format behavior intact while adding deterministic disambiguation only when collisions occur, preserving human-readable names but preventing data loss from overwrite races.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — add Search All and Download All buttons to conference venue page
 
 **Action:** Added "Search All" and "Download All" buttons to the Papers section of the conference venue page. Search All runs `POST /paper-search/{year}` sequentially for every year where `found_papers` is null (never searched), updating the Found cell live as each completes. Download All calls `downloadYear()` for every year where `downloaded_papers === 0` and `last_status !== 'success'` and no task is already running, with a 500ms gap between starts; existing polling handles live progress per year. Both buttons are disabled during execution and re-enabled when done.
@@ -143,85 +162,6 @@ Example output: `evaluation-utm-conops-drone-deliveries-li-atrd-2025.pdf`
 - `AGENT_LOG.md` — prepended this entry
 
 **Decisions:** Used `_pdfUrl(idx, false)` (already in scope inside `openDetail`) to build the server PDF URL, keeping the same DOI encoding logic as the icon buttons.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — add PDF view/download icons to papers page
-
-**Action:** Added a new actions column (eyeglass 🔍 / download ⬇ icons) to the left of Paper information on the papers page. Clicking 🔍 opens the stored PDF inline in a new tab; clicking ⬇ triggers a browser file download. Icons are disabled (greyed out) when no PDF is stored. Added `GET /api/papers/{doi:path}/pdf` endpoint to `papers.py` that serves the file from `pdf_path` with `Content-Disposition: inline` (view) or `attachment` (download) based on a `?download=true` query param. Removed the clickable link styling from the paper title.
-
-**Files changed:**
-- `api/routes/papers.py` — added `GET /{doi:path}/pdf` endpoint with `FileResponse`; imported `FileResponse`
-- `api/static/papers.html` — actions column with icon buttons; `viewPdf`, `downloadPdf`, `_pdfUrl` helpers; removed paper-title link styling
-- `VERSION.md` — bumped to `paper-library-v0.1.87`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** DOI path segments are individually percent-encoded then joined with `/` so DOIs like `10.0000/atrd_symposium.2025.foo` survive URL parsing correctly. View uses `window.open` (new tab); download uses a hidden `<a download>` click to trigger the browser save dialog without navigation.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — fix paper detail panel not opening on click
-
-**Action:** `openDetail` was called with `JSON.stringify(JSON.stringify(p))` embedded in the `onclick` HTML attribute. This broke in two ways: (1) only one `JSON.parse` call unwrapped the double-encoded string, leaving a string instead of an object; (2) paper titles and fields containing quotes, `<`, `>`, or `&` corrupted the HTML attribute. Fixed by storing rendered papers in a module-level `_paperCache` map (index → object), passing only the integer index to `onclick="openDetail(idx)"`, and looking up the paper object in the handler. Cache is cleared on each `render()` call.
-
-**Files changed:**
-- `api/static/papers.html` — `_paperCache` map; `render()` populates cache and uses index in onclick; `openDetail(idx)` looks up from cache
-- `VERSION.md` — bumped to `paper-library-v0.1.86`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Index-based lookup is the standard pattern for passing complex objects through HTML event attributes — avoids all serialisation/escaping issues entirely.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — parallel PDF downloads for ATRD via concurrency strategy config
-
-**Action:** Added parallel PDF download support controlled by `concurrency` in the strategy's `download_pdf` step config. Added `_apply_download_pdfs_parallel` — an async function that dispatches all PDF downloads concurrently using `asyncio.gather` with an `asyncio.Semaphore` to cap simultaneous requests. An `on_progress` callback fires after each paper completes so the task counter updates in real time. `_run_download_task` now detects `concurrency > 1` and takes a parallel path: phase 1 applies all pre-download steps (generate_doi) to the full batch; phase 2 runs parallel downloads; phase 3 applies post-download steps (build_bibtex, upsert_papers) sequentially. The sequential path (concurrency ≤ 1) is preserved unchanged. Set `concurrency: 5` in `strategies/atrd.json`.
-
-**Files changed:**
-- `api/routes/venues.py` — `_apply_download_pdfs_parallel` with semaphore and progress callback; `_run_download_task` parallel/sequential branching
-- `strategies/atrd.json` — `concurrency: 5` added to `download_pdf` step config
-- `VERSION.md` — bumped to `paper-library-v0.1.85`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Concurrency of 5 is conservative — Google Drive can throttle; raise if the searcher handles it well. Cancel checks remain between phases so a cancel mid-download is still honoured. Progress counter in the parallel path increments as each PDF finishes, so the UI "Downloading X/Y" stays live even with batch execution.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — fix 500 on download start caused by missing tasks/ directory
-
-**Action:** Download start was returning plain-text "Internal Server Error" because `_write_task` was calling `TASKS_DIR.mkdir` on a directory that didn't exist on the deployed server (the deploy scripts were updated but `update.sh` hadn't been run yet). The OSError propagated unhandled out of `start_download` as a non-JSON 500. Fixed by: (1) creating all runtime directories (`PDF_DIR`, `VENUES_DIR`, `STRATEGIES_DIR`, `TASKS_DIR`) in the app lifespan on startup — server now self-heals on restart; (2) wrapping `_write_task` to re-raise as `RuntimeError`; (3) catching that in `start_download` and raising `HTTPException(500)` so the client always gets JSON.
-
-**Files changed:**
-- `api/main.py` — lifespan creates all runtime dirs on startup
-- `api/routes/venues.py` — `_write_task` wraps filesystem errors; `start_download` catches and raises HTTP 500
-- `VERSION.md` — bumped to `paper-library-v0.1.84`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Lifespan directory creation is idempotent (`exist_ok=True`) so it's safe on every restart. This also fixes any future case where `venues/`, `pdf/`, or `strategies/` are missing without requiring a manual deploy step.
-
-**Open items:** The deployed server still needs a service restart to trigger the lifespan and create `tasks/`. Run `sudo systemctl restart paper-library` on the LXC, then retry the download.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — fix missing Papers nav link in tags.html; clean up router order
-
-**Action:** Reviewed codex's `/papers-ui` backward-compat change. The approach is correct — dual-mounting the router at `/papers` (legacy) and `/api/papers` (canonical) cleanly resolves the URL conflict. Found one miss: `tags.html` was not included in codex's sed pass and was missing the Papers nav link. Fixed. Also reordered router registrations in `main.py` so `health` comes first and the legacy `/papers` alias is clearly annotated, matching the pattern used by other routers.
-
-**Files changed:**
-- `api/static/tags.html` — added `<a href="/papers-ui">Papers</a>` nav link
-- `api/main.py` — reordered routers: health first, then `/api/papers`, then `/papers` legacy alias with comment
-- `VERSION.md` — bumped to `paper-library-v0.1.83`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** No functional change — all routes and prefixes remain the same. Router order change is cosmetic only; FastAPI registration order only matters for path conflicts, which don't exist here.
 
 **Open items:** None.
 

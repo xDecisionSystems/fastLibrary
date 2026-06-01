@@ -508,6 +508,7 @@ def _apply_download_pdfs(
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     updated: list[dict] = []
+    reserved_names: set[str] = set()
     for paper in candidates:
         if not isinstance(paper, dict):
             continue
@@ -515,7 +516,7 @@ def _apply_download_pdfs(
             updated.append(paper)
             continue
         filename = _pdf_filename_for_paper(paper, venue_doc, year)
-        dest_path = dest_dir / filename
+        dest_path = _reserve_pdf_dest_path(dest_dir, filename, paper, reserved_names)
         try:
             pdf_bytes = _call_pdf_download(download_url, paper)
             dest_path.write_bytes(pdf_bytes)
@@ -561,6 +562,17 @@ async def _apply_download_pdfs_parallel(
 
     semaphore = asyncio.Semaphore(concurrency)
     results: list[dict | None] = [None] * len(candidates)
+    planned_paths: list[Path | None] = [None] * len(candidates)
+    reserved_names: set[str] = set()
+
+    # Build deterministic destination paths first so parallel writes never collide.
+    for index, paper in enumerate(candidates):
+        if not isinstance(paper, dict):
+            continue
+        if str(paper.get("pdf_path") or "").strip():
+            continue
+        filename = await asyncio.to_thread(_pdf_filename_for_paper, paper, venue_doc, year)
+        planned_paths[index] = _reserve_pdf_dest_path(dest_dir, filename, paper, reserved_names)
 
     async def _download_one(index: int, paper: dict) -> None:
         if not isinstance(paper, dict):
@@ -571,13 +583,12 @@ async def _apply_download_pdfs_parallel(
             if on_progress:
                 await on_progress(1)
             return
-        filename = await asyncio.to_thread(_pdf_filename_for_paper, paper, venue_doc, year)
-        if not filename:
+        dest_path = planned_paths[index]
+        if dest_path is None:
             results[index] = paper
             if on_progress:
                 await on_progress(1)
             return
-        dest_path = dest_dir / filename
         async with semaphore:
             try:
                 pdf_bytes = await asyncio.to_thread(_call_pdf_download, download_url, paper)
@@ -636,6 +647,50 @@ def _make_title_slug(title: str) -> str:
     slug = re.sub(r"[^\w\s]", "", title.lower())
     slug = re.sub(r"\s+", "_", slug.strip())
     return slug[:60].strip("_")
+
+
+def _paper_filename_identity(paper: dict) -> str:
+    doi = str(paper.get("doi") or paper.get("DOI") or "").strip().lower()
+    if doi:
+        identity = re.sub(r"[^a-z0-9]+", "_", doi).strip("_")
+        if identity:
+            return identity[:40]
+    title_slug = str(paper.get("title_slug") or "").strip().lower()
+    if not title_slug:
+        title_slug = _make_title_slug(str(paper.get("title") or ""))
+    if title_slug:
+        return re.sub(r"[^a-z0-9_]+", "_", title_slug).strip("_")[:40] or "paper"
+    return "paper"
+
+
+def _reserve_pdf_dest_path(
+    dest_dir: Path, filename: str, paper: dict, reserved_names: set[str]
+) -> Path:
+    safe_name = str(filename or "").strip() or "paper.pdf"
+    if not safe_name.lower().endswith(".pdf"):
+        safe_name = f"{safe_name}.pdf"
+    safe_name = safe_name.replace("/", "_").replace("\\", "_")
+    stem = Path(safe_name).stem
+    suffix = Path(safe_name).suffix or ".pdf"
+
+    candidate = safe_name
+    if candidate not in reserved_names and not (dest_dir / candidate).exists():
+        reserved_names.add(candidate)
+        return dest_dir / candidate
+
+    identity = _paper_filename_identity(paper)
+    candidate = f"{stem}-{identity}{suffix}"
+    if candidate not in reserved_names and not (dest_dir / candidate).exists():
+        reserved_names.add(candidate)
+        return dest_dir / candidate
+
+    index = 2
+    while True:
+        candidate = f"{stem}-{identity}-{index}{suffix}"
+        if candidate not in reserved_names and not (dest_dir / candidate).exists():
+            reserved_names.add(candidate)
+            return dest_dir / candidate
+        index += 1
 
 
 def _pdf_filename_for_paper(paper: dict, venue_doc: dict, year: int) -> str:

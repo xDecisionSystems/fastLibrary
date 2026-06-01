@@ -238,6 +238,7 @@ Tags are normalized/tracked in `venues/_tags.json`. Tags cannot be empty, cannot
 Conference download attempt metadata is stored in each venue JSON under `paper_downloads` keyed by year, including `downloaded_papers`, `last_attempted_at`, `last_status`, and `last_error`.
 Conference search cache metadata is stored in MongoDB collection `paper_search_cache` keyed by `(slug, year)` and surfaced as `found_papers`; `null` means no cached search has been run for that year.
 Async download task state is stored as JSON files under `tasks/` (`<slug>-<year>.json`) so progress can be polled and resumed across page navigation.
+When strategy step `download_pdf` is enabled, PDF filenames are generated via Azure OpenAI (`services.venues.generate_pdf_filename`) with a safe slug fallback. Destination names are de-duplicated per batch so concurrent downloads cannot overwrite each other.
 
 Strategy API endpoints:
 

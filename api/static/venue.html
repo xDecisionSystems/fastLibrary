@@ -410,7 +410,9 @@ function _applyTaskToRow(year, task){
     if(statusEl) statusEl.innerHTML='<span style="color:#0066cc;font-weight:600">RUNNING</span>';
   } else {
     if(countEl) countEl.textContent=task.downloaded||0;
-    const cls=task.status==='success'||task.status==='partial'?'status-ok':'status-err';
+    const cls=task.status==='success'||task.status==='partial'
+      ?'status-ok'
+      :(task.status==='cancelled'?'status-cancelled':'status-err');
     const label=(task.status||'').toUpperCase();
     const errNote=task.errors&&task.errors.length?`<div style="font-size:.74rem;color:#777">${esc(task.errors.slice(0,2).join('; '))}</div>`:'';
     if(statusEl) statusEl.innerHTML=`<span class="${cls}">${label}</span>${errNote}`;
