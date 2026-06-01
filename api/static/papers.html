@@ -33,9 +33,13 @@
   td{padding:9px 12px;border-bottom:1px solid #eee;vertical-align:top}
   tr:last-child td{border-bottom:none}
   tr:hover td{background:#fafafa}
-  .paper-title{font-weight:500;color:#0066cc;cursor:pointer}
-  .paper-title:hover{text-decoration:underline}
+  .paper-title{font-weight:500}
   .paper-meta{font-size:.78rem;color:#777;margin-top:2px}
+  .icon-btn{background:none;border:none;cursor:pointer;padding:4px 5px;border-radius:4px;font-size:1rem;line-height:1;color:#555;display:block;width:100%}
+  .icon-btn:hover{background:#e8f0fe;color:#0066cc}
+  .icon-btn:disabled{opacity:.3;cursor:default}
+  .icon-btn:disabled:hover{background:none;color:#555}
+  td.actions-col{width:44px;padding:6px 4px;text-align:center;vertical-align:middle}
   .tag-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.72rem;background:#e8f0fe;color:#1a56cc;margin:2px 2px 0 0;white-space:nowrap}
   .dl-yes{color:green;font-weight:600}
   .dl-no{color:#aaa}
@@ -101,6 +105,7 @@
   <table>
     <thead>
       <tr>
+        <th class="no-sort" style="width:44px"></th>
         <th onclick="setSort('title')">Paper</th>
         <th class="no-sort">Tags</th>
         <th onclick="setSort('publication_year')" style="width:70px">Year</th>
@@ -228,9 +233,15 @@ function render(results){
     const dlStatus=p.pdf_path
       ? `<span class="dl-yes">✓</span> <span class="dl-pdf">${esc(p.pdf_path.split('/').pop())}</span>`
       : (p.ingested?'<span class="dl-yes">✓ Ingested</span>':'<span class="dl-no">—</span>');
+    const hasPdf=!!(p.pdf_path);
+    const encodedDoi=encodeURIComponent(p.doi||'').replace(/%2F/g,'/');
     tr.innerHTML=`
+      <td class="actions-col">
+        <button class="icon-btn" title="View PDF" onclick="viewPdf(${idx})" ${hasPdf?'':'disabled'}>🔍</button>
+        <button class="icon-btn" title="Download PDF" onclick="downloadPdf(${idx})" ${hasPdf?'':'disabled'}>⬇</button>
+      </td>
       <td>
-        <div class="paper-title" onclick="openDetail(${idx})">${esc(p.title||'Untitled')}</div>
+        <div class="paper-title">${esc(p.title||'Untitled')}</div>
         <div class="paper-meta">${esc(authors)}</div>
         <div class="mono" style="margin-top:2px">${esc(p.doi||'')}</div>
       </td>
@@ -247,6 +258,30 @@ function render(results){
   document.getElementById('summary').textContent=`${total.toLocaleString()} paper${total===1?'':'s'}`;
   document.getElementById('btn-prev').disabled=skip===0;
   document.getElementById('btn-next').disabled=skip+PAGE_SIZE>=total;
+}
+
+// ── PDF actions ───────────────────────────────────────────────────────────────
+function _pdfUrl(idx, download=false){
+  const p=_paperCache[idx];
+  if(!p||!p.doi)return null;
+  const encoded=p.doi.split('/').map(encodeURIComponent).join('/');
+  return `/api/papers/${encoded}/pdf${download?'?download=true':''}`;
+}
+
+function viewPdf(idx){
+  const url=_pdfUrl(idx,false);
+  if(url) window.open(url,'_blank');
+}
+
+function downloadPdf(idx){
+  const url=_pdfUrl(idx,true);
+  if(!url)return;
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ── detail panel ──────────────────────────────────────────────────────────────

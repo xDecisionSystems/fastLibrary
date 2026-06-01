@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — add PDF view/download icons to papers page
+
+**Action:** Added a new actions column (eyeglass 🔍 / download ⬇ icons) to the left of Paper information on the papers page. Clicking 🔍 opens the stored PDF inline in a new tab; clicking ⬇ triggers a browser file download. Icons are disabled (greyed out) when no PDF is stored. Added `GET /api/papers/{doi:path}/pdf` endpoint to `papers.py` that serves the file from `pdf_path` with `Content-Disposition: inline` (view) or `attachment` (download) based on a `?download=true` query param. Removed the clickable link styling from the paper title.
+
+**Files changed:**
+- `api/routes/papers.py` — added `GET /{doi:path}/pdf` endpoint with `FileResponse`; imported `FileResponse`
+- `api/static/papers.html` — actions column with icon buttons; `viewPdf`, `downloadPdf`, `_pdfUrl` helpers; removed paper-title link styling
+- `VERSION.md` — bumped to `paper-library-v0.1.87`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** DOI path segments are individually percent-encoded then joined with `/` so DOIs like `10.0000/atrd_symposium.2025.foo` survive URL parsing correctly. View uses `window.open` (new tab); download uses a hidden `<a download>` click to trigger the browser save dialog without navigation.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — fix paper detail panel not opening on click
 
 **Action:** `openDetail` was called with `JSON.stringify(JSON.stringify(p))` embedded in the `onclick` HTML attribute. This broke in two ways: (1) only one `JSON.parse` call unwrapped the double-encoded string, leaving a string instead of an object; (2) paper titles and fields containing quotes, `<`, `>`, or `&` corrupted the HTML attribute. Fixed by storing rendered papers in a module-level `_paperCache` map (index → object), passing only the integer index to `onclick="openDetail(idx)"`, and looking up the paper object in the handler. Cache is cleared on each `render()` call.

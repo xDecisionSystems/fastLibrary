@@ -5,6 +5,7 @@ from typing import Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
 from config.settings import PDF_DIR, settings
 from services.models import BulkUpsertRequest, Paper, PaperUpdate, UpsertRequest
@@ -181,6 +182,26 @@ async def upload_pdf(doi: str, file: UploadFile = File(...)) -> dict:
     )
 
     return {"doi": doi, "pdf_path": str(dest), "size_bytes": total_bytes}
+
+
+@router.get("/{doi:path}/pdf")
+async def serve_pdf(doi: str, download: bool = Query(False)) -> FileResponse:
+    doc = await mongo.get_paper(doi)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    pdf_path = str(doc.get("pdf_path") or "").strip()
+    if not pdf_path:
+        raise HTTPException(status_code=404, detail="No PDF stored for this paper.")
+    path = Path(pdf_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found on server.")
+    filename = path.name
+    disposition = "attachment" if download else "inline"
+    return FileResponse(
+        path=str(path),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
+    )
 
 
 @router.get("/{doi:path}")
