@@ -192,7 +192,16 @@ async def serve_pdf(doi: str, download: bool = Query(False)) -> FileResponse:
     pdf_path = str(doc.get("pdf_path") or "").strip()
     if not pdf_path:
         raise HTTPException(status_code=404, detail="No PDF stored for this paper.")
-    path = Path(pdf_path)
+    path = Path(pdf_path).expanduser()
+    if not path.is_absolute():
+        path = (Path.cwd() / path).resolve()
+    else:
+        path = path.resolve()
+    base_dir = PDF_DIR.resolve()
+    try:
+        path.relative_to(base_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Stored PDF path is outside server PDF directory.") from exc
     if not path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on server.")
     filename = path.name
