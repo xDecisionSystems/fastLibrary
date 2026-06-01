@@ -9,6 +9,7 @@ from api.routes import health as health_router
 from api.routes import papers as papers_router
 from api.routes import strategies as strategies_router
 from api.routes import venues as venues_router
+from config.settings import PDF_DIR, STRATEGIES_DIR, TASKS_DIR, VENUES_DIR
 from services import mongo
 
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -16,6 +17,8 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    for d in (PDF_DIR, VENUES_DIR, STRATEGIES_DIR, TASKS_DIR):
+        d.mkdir(parents=True, exist_ok=True)
     await mongo.connect()
     yield
     await mongo.disconnect()

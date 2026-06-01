@@ -749,8 +749,11 @@ def _read_task(slug: str, year: int) -> dict:
 
 
 def _write_task(slug: str, year: int, data: dict) -> None:
-    TASKS_DIR.mkdir(parents=True, exist_ok=True)
-    _task_path(slug, year).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    try:
+        TASKS_DIR.mkdir(parents=True, exist_ok=True)
+        _task_path(slug, year).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception as exc:
+        raise RuntimeError(f"failed to write task state for {slug}/{year}: {exc}") from exc
 
 
 def _task_running(slug: str, year: int) -> bool:
@@ -1143,10 +1146,13 @@ async def start_download(slug: str, year: int, background_tasks: BackgroundTasks
         raise HTTPException(status_code=400, detail="paper downloads are only supported for conference venues")
     if _task_running(slug, parsed_year):
         raise HTTPException(status_code=409, detail="a download is already in progress for this year")
-    _write_task(slug, parsed_year, {
-        "status": "running", "total": 0, "downloaded": 0,
-        "errors": [], "started_at": _utc_now_iso(),
-    })
+    try:
+        _write_task(slug, parsed_year, {
+            "status": "running", "total": 0, "downloaded": 0,
+            "errors": [], "started_at": _utc_now_iso(),
+        })
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     background_tasks.add_task(_run_download_task, slug, parsed_year)
     return {"slug": slug, "year": parsed_year, "status": "started"}
 

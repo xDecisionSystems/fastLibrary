@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — fix 500 on download start caused by missing tasks/ directory
+
+**Action:** Download start was returning plain-text "Internal Server Error" because `_write_task` was calling `TASKS_DIR.mkdir` on a directory that didn't exist on the deployed server (the deploy scripts were updated but `update.sh` hadn't been run yet). The OSError propagated unhandled out of `start_download` as a non-JSON 500. Fixed by: (1) creating all runtime directories (`PDF_DIR`, `VENUES_DIR`, `STRATEGIES_DIR`, `TASKS_DIR`) in the app lifespan on startup — server now self-heals on restart; (2) wrapping `_write_task` to re-raise as `RuntimeError`; (3) catching that in `start_download` and raising `HTTPException(500)` so the client always gets JSON.
+
+**Files changed:**
+- `api/main.py` — lifespan creates all runtime dirs on startup
+- `api/routes/venues.py` — `_write_task` wraps filesystem errors; `start_download` catches and raises HTTP 500
+- `VERSION.md` — bumped to `paper-library-v0.1.84`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Lifespan directory creation is idempotent (`exist_ok=True`) so it's safe on every restart. This also fixes any future case where `venues/`, `pdf/`, or `strategies/` are missing without requiring a manual deploy step.
+
+**Open items:** The deployed server still needs a service restart to trigger the lifespan and create `tasks/`. Run `sudo systemctl restart paper-library` on the LXC, then retry the download.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — fix missing Papers nav link in tags.html; clean up router order
 
 **Action:** Reviewed codex's `/papers-ui` backward-compat change. The approach is correct — dual-mounting the router at `/papers` (legacy) and `/api/papers` (canonical) cleanly resolves the URL conflict. Found one miss: `tags.html` was not included in codex's sed pass and was missing the Papers nav link. Fixed. Also reordered router registrations in `main.py` so `health` comes first and the legacy `/papers` alias is clearly annotated, matching the pattern used by other routers.
