@@ -135,6 +135,7 @@ let skip = 0;
 let total = 0;
 let sortKey = '';
 let sortDir = 1; // 1=asc, -1=desc
+const _paperCache = {}; // index -> paper object, reset on each render
 
 function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
 
@@ -216,7 +217,9 @@ function render(results){
     });
   }
 
-  results.forEach(p=>{
+  Object.keys(_paperCache).forEach(k=>delete _paperCache[k]);
+  results.forEach((p, idx)=>{
+    _paperCache[idx]=p;
     const tr=document.createElement('tr');
     const authors=Array.isArray(p.authors)&&p.authors.length
       ? p.authors.slice(0,3).join(', ')+(p.authors.length>3?' et al.':'')
@@ -227,7 +230,7 @@ function render(results){
       : (p.ingested?'<span class="dl-yes">✓ Ingested</span>':'<span class="dl-no">—</span>');
     tr.innerHTML=`
       <td>
-        <div class="paper-title" onclick="openDetail(${JSON.stringify(JSON.stringify(p))})">${esc(p.title||'Untitled')}</div>
+        <div class="paper-title" onclick="openDetail(${idx})">${esc(p.title||'Untitled')}</div>
         <div class="paper-meta">${esc(authors)}</div>
         <div class="mono" style="margin-top:2px">${esc(p.doi||'')}</div>
       </td>
@@ -247,8 +250,9 @@ function render(results){
 }
 
 // ── detail panel ──────────────────────────────────────────────────────────────
-function openDetail(jsonStr){
-  const p=JSON.parse(jsonStr);
+function openDetail(idx){
+  const p=_paperCache[idx];
+  if(!p)return;
   document.getElementById('detail-title').textContent=p.title||'Untitled';
 
   const authors=Array.isArray(p.authors)?p.authors.join(', '):'—';

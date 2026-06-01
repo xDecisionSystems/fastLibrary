@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — fix paper detail panel not opening on click
+
+**Action:** `openDetail` was called with `JSON.stringify(JSON.stringify(p))` embedded in the `onclick` HTML attribute. This broke in two ways: (1) only one `JSON.parse` call unwrapped the double-encoded string, leaving a string instead of an object; (2) paper titles and fields containing quotes, `<`, `>`, or `&` corrupted the HTML attribute. Fixed by storing rendered papers in a module-level `_paperCache` map (index → object), passing only the integer index to `onclick="openDetail(idx)"`, and looking up the paper object in the handler. Cache is cleared on each `render()` call.
+
+**Files changed:**
+- `api/static/papers.html` — `_paperCache` map; `render()` populates cache and uses index in onclick; `openDetail(idx)` looks up from cache
+- `VERSION.md` — bumped to `paper-library-v0.1.86`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Index-based lookup is the standard pattern for passing complex objects through HTML event attributes — avoids all serialisation/escaping issues entirely.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — parallel PDF downloads for ATRD via concurrency strategy config
 
 **Action:** Added parallel PDF download support controlled by `concurrency` in the strategy's `download_pdf` step config. Added `_apply_download_pdfs_parallel` — an async function that dispatches all PDF downloads concurrently using `asyncio.gather` with an `asyncio.Semaphore` to cap simultaneous requests. An `on_progress` callback fires after each paper completes so the task counter updates in real time. `_run_download_task` now detects `concurrency > 1` and takes a parallel path: phase 1 applies all pre-download steps (generate_doi) to the full batch; phase 2 runs parallel downloads; phase 3 applies post-download steps (build_bibtex, upsert_papers) sequentially. The sequential path (concurrency ≤ 1) is preserved unchanged. Set `concurrency: 5` in `strategies/atrd.json`.
