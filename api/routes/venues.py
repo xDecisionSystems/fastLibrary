@@ -473,11 +473,23 @@ def _call_searcher(request_spec: dict) -> dict | list:
 def _call_pdf_download(url: str, paper: dict, retries: int = 3, backoff: float = 5.0) -> bytes:
     import time
     from http.client import IncompleteRead
+
+    try:
+        attempts = int(retries)
+    except (TypeError, ValueError):
+        attempts = 1
+    attempts = max(1, attempts)
+    try:
+        retry_backoff = float(backoff)
+    except (TypeError, ValueError):
+        retry_backoff = 5.0
+    retry_backoff = max(0.0, retry_backoff)
+
     body = json.dumps(paper).encode("utf-8")
     last_exc: Exception = RuntimeError("no attempts made")
-    for attempt in range(max(1, retries)):
+    for attempt in range(attempts):
         if attempt > 0:
-            time.sleep(backoff * attempt)
+            time.sleep(retry_backoff * attempt)
         req = urllib_request.Request(
             url=url,
             data=body,
@@ -488,7 +500,9 @@ def _call_pdf_download(url: str, paper: dict, retries: int = 3, backoff: float =
             with urllib_request.urlopen(req, timeout=180) as resp:
                 return resp.read()
         except IncompleteRead as exc:
-            last_exc = RuntimeError(f"PDF download incomplete (attempt {attempt+1}/{retries}): {exc}")
+            last_exc = RuntimeError(
+                f"PDF download incomplete (attempt {attempt+1}/{attempts}): {exc}"
+            )
         except urllib_error.HTTPError as exc:
             err_body = exc.read().decode("utf-8", errors="ignore").strip()
             err = RuntimeError(f"PDF download returned {exc.code}: {err_body or exc.reason}")
@@ -499,6 +513,22 @@ def _call_pdf_download(url: str, paper: dict, retries: int = 3, backoff: float =
         except urllib_error.URLError as exc:
             last_exc = RuntimeError(f"PDF download request failed: {exc.reason}")
     raise last_exc
+
+
+def _coerce_retry_settings(step_config: dict) -> tuple[int, float]:
+    raw_retries = step_config.get("retries", 3)
+    raw_backoff = step_config.get("backoff", 5.0)
+    try:
+        retries = int(raw_retries)
+    except (TypeError, ValueError):
+        retries = 3
+    retries = max(1, retries)
+    try:
+        backoff = float(raw_backoff)
+    except (TypeError, ValueError):
+        backoff = 5.0
+    backoff = max(0.0, backoff)
+    return retries, backoff
 
 
 def _apply_download_pdfs(
@@ -520,8 +550,7 @@ def _apply_download_pdfs(
     dest_dir = PDF_DIR / subdir
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    retries = int(step_config.get("retries") or 3)
-    backoff = float(step_config.get("backoff") or 5.0)
+    retries, backoff = _coerce_retry_settings(step_config)
     updated: list[dict] = []
     reserved_names: set[str] = set()
     for paper in candidates:
@@ -579,6 +608,7 @@ async def _apply_download_pdfs_parallel(
     results: list[dict | None] = [None] * len(candidates)
     planned_paths: list[Path | None] = [None] * len(candidates)
     reserved_names: set[str] = set()
+    retries, backoff = _coerce_retry_settings(step_config)
 
     # Build deterministic destination paths first so parallel writes never collide.
     for index, paper in enumerate(candidates):
@@ -604,8 +634,6 @@ async def _apply_download_pdfs_parallel(
             if on_progress:
                 await on_progress(1)
             return
-        retries = int(step_config.get("retries") or 3)
-        backoff = float(step_config.get("backoff") or 5.0)
         async with semaphore:
             try:
                 pdf_bytes = await asyncio.to_thread(

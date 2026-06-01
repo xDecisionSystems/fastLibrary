@@ -450,6 +450,17 @@ function _startPolling(year){
       }
     }catch(e){
       delete _pollTimers[year];
+      const statusEl=document.getElementById(`dl-status-${year}`);
+      const actionsEl=document.getElementById(`dl-actions-${year}`);
+      if(statusEl){
+        statusEl.innerHTML='<span class="status-err">STATUS UNKNOWN</span><div style="font-size:.74rem;color:#777">Live polling failed. Refreshing…</div>';
+      }
+      if(actionsEl) actionsEl.innerHTML=_actionsCell(year,false);
+      if(Object.keys(_pollTimers).length===0){
+        await loadPapers();
+      }else{
+        setPapersStatus(`Live status failed for ${year}. Other downloads still running.`, 'err');
+      }
     }
   }
   _pollTimers[year]=setTimeout(poll,1000);
@@ -498,9 +509,13 @@ async function downloadYear(year){
   try{
     const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}/start`,{method:'POST'});
     const d=await r.json();
-    if(!r.ok){setPapersStatus(d.detail||'Failed to start download.','err');return;}
+    if(!r.ok){setPapersStatus(d.detail||'Failed to start download.','err');return false;}
     _startPolling(year);
-  }catch(e){setPapersStatus('Request failed: '+e.message,'err');}
+    return true;
+  }catch(e){
+    setPapersStatus('Request failed: '+e.message,'err');
+    return false;
+  }
 }
 
 async function cancelDownload(year){
@@ -549,13 +564,20 @@ async function downloadAll(){
   const btn=document.getElementById('btn-download-all');
   btn.disabled=true;
   setPapersStatus(`Starting downloads for ${pending.length} year(s)…`,'');
+  let started=0;
   for(const row of pending){
-    await downloadYear(row.year);
+    if(await downloadYear(row.year)) started+=1;
     // Brief pause between starts so the server isn't flooded simultaneously
     await new Promise(res=>setTimeout(res,500));
   }
   btn.disabled=false;
-  setPapersStatus(`Download started for ${pending.length} year(s). Monitor progress below.`,'ok');
+  if(started===0){
+    setPapersStatus('No downloads were started.','err');
+  }else if(started<pending.length){
+    setPapersStatus(`Started ${started} of ${pending.length} downloads. Monitor progress below.`,'err');
+  }else{
+    setPapersStatus(`Download started for ${started} year(s). Monitor progress below.`,'ok');
+  }
 }
 
 // ── search modal ──────────────────────────────────────────────────────────────

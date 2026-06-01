@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] codex-gpt-5 — harden download retry config parsing and recover UI after polling failures
+
+**Action:** Reviewed the most recent Claude changes (`v0.1.99`–`v0.2.1`) with focus on Download All polling and transient PDF retry behavior. Applied two follow-up fixes: (1) hardened `download_pdf` retry settings by coercing invalid/negative `retries` and `backoff` values to safe defaults, and fixed retry attempt labels to reflect actual attempt counts; (2) improved venue-page polling failure handling so a polling error no longer leaves rows stuck in running state, and Download All now reports how many starts actually succeeded.
+
+**Files changed:**
+- `api/routes/venues.py` — sanitized retry/backoff config handling and corrected retry attempt accounting in `_call_pdf_download`
+- `api/static/venue.html` — polling error recovery updates row/actions and reloads when appropriate; `downloadYear` now returns success/failure; `downloadAll` reports partial start failures accurately
+- `VERSION.md` — bumped to `paper-library-v0.2.2`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Kept linear backoff behavior unchanged while making malformed strategy values non-fatal. UI failure handling now favors quick recovery to server-authoritative state instead of leaving stale in-progress controls.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — remove Per-Year Proceedings notes/location/month columns from conference UIs
 
 **Action:** Updated conference-facing Per-Year Proceedings tables to remove visible `notes`, `location`, and `month` columns as requested. Applied this in both conference creation and conference edit pages. To avoid unintended data loss for existing records, hidden per-row metadata is preserved via row `dataset` attributes and still sent back in `download_sources` on save.
@@ -146,85 +162,3 @@ Example output: `evaluation-utm-conops-drone-deliveries-li-atrd-2025.pdf`
 
 ---
 
-## [2026-06-01] codex-gpt-5 — review latest Claude admin changes; fix task-state reset and docs drift
-
-**Action:** Reviewed the latest Claude changes (`v0.1.90` ingested inference and `v0.1.91` admin wipe flow). Confirmed `_to_paper_model` now marks papers ingested when `pdf_path` is present. Applied follow-up fixes around the new admin reset path: added task-state file cleanup (`tasks/*.json`) to prevent stale download status after a full wipe, hardened admin UI error rendering with HTML escaping, and synced `ARCHITECTURE.md` with newly added endpoints/routes (`GET /papers/{doi:path}/pdf`, `POST /api/admin/delete-all-papers`, `/admin` page route).
-
-**Files changed:**
-- `api/routes/admin.py` — removed unused imports; delete persisted task-state JSON files; include `deleted_task_states` in response
-- `api/static/admin.html` — added escaping helper for rendered errors; show deleted task-state count in results
-- `ARCHITECTURE.md` — documented stored-PDF GET endpoint, admin API endpoint, and `/admin` UI route
-- `VERSION.md` — bumped to `paper-library-v0.1.92`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Kept admin endpoint semantics additive (no breaking contract changes): task-state cleanup is included in the same operation and returned as an additional count field.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — add admin page with delete-all-papers action
-
-**Action:** Added an Admin page at `/admin` with a single destructive action: Delete All Papers. The action deletes all paper records from MongoDB, clears the `paper_search_cache` collection, removes all `.pdf` files from `PDF_DIR`, and resets `paper_downloads` to `{}` on every venue JSON file. A confirmation dialog is shown before execution. The result panel shows counts for each operation. Added `POST /api/admin/delete-all-papers` endpoint in a new `api/routes/admin.py` router. Added `delete_all_papers` and `clear_search_cache` helpers to `services/mongo.py`. Registered the admin router at `/api/admin` in `main.py` and added Admin nav link to all pages.
-
-**Files changed:**
-- `api/routes/admin.py` — new admin router with `delete-all-papers` endpoint
-- `services/mongo.py` — added `delete_all_papers`, `clear_search_cache` helpers
-- `api/main.py` — registered admin router; added `/admin` page route
-- `api/static/admin.html` — new admin page
-- `api/static/{conf,venues,journals,venue,addconf,addjournal,papers,tags,strategies}.html` — Admin nav link added
-- `VERSION.md` — bumped to `paper-library-v0.1.91`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** PDF deletion walks `PDF_DIR.rglob("*.pdf")` so it catches files in any subdirectory. Venue `paper_downloads` is reset to `{}` rather than deleted so the year entries reappear when the venue is re-saved. Errors are collected per operation and returned in the response rather than aborting early.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — mark paper ingested=True when pdf_path is set
-
-**Action:** ATRD papers were being upserted with `ingested=False` because `_to_paper_model` defaulted to `raw.get("ingested", False)` and the ATRD searcher response never includes an `ingested` field. Papers with a stored PDF are by definition ingested. Fixed by treating a non-empty `pdf_path` as implicit evidence of ingestion: `ingested=bool(raw.get("ingested") or pdf_path)`.
-
-**Files changed:**
-- `api/routes/venues.py` — `_to_paper_model` sets `ingested=True` when `pdf_path` is present
-- `VERSION.md` — bumped to `paper-library-v0.1.90`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Preserves explicit `ingested=True` from any source that sets it directly. Papers without a PDF that explicitly set `ingested=True` (e.g. via the API) are also preserved. Only the missing-field default case is changed.
-
-**Open items:** Already-downloaded ATRD papers in the database have `ingested=False` — they won't be corrected until re-downloaded or manually patched. A one-time MongoDB update would fix existing records: `db.papers.updateMany({pdf_path: {$exists: true, $ne: ""}}, {$set: {ingested: true}})`.
-
----
-
-## [2026-06-01] codex-gpt-5 — fix papers detail access regression and secure PDF file serving
-
-**Action:** Reviewed the most recent Claude changes (v0.1.83–v0.1.88) and fixed two regressions. First, the papers detail panel became unreachable after icon-column updates because `openDetail()` was no longer called anywhere in the rendered rows; restored detail access by wiring title click to `openDetail(idx)` and adding hover/cursor affordance. Second, the new `GET /api/papers/{doi}/pdf` endpoint trusted `pdf_path` from metadata and could serve files outside the project PDF directory if a record was poisoned; added path canonicalization and `PDF_DIR` boundary enforcement before serving.
-
-**Files changed:**
-- `api/routes/papers.py` — enforced `pdf_path` resolution inside `PDF_DIR` in `serve_pdf`
-- `api/static/papers.html` — restored `openDetail(idx)` click path on paper title; added pointer/hover affordance
-- `VERSION.md` — bumped to `paper-library-v0.1.89`
-- `AGENT_LOG.md` — prepended this entry and archived older entries beyond 10 most recent
-- `history/2026-06.md` — received archived AGENT_LOG entries
-
-**Decisions:** Rejected out-of-root `pdf_path` values with HTTP 400 rather than silently normalizing to prevent accidental or malicious file disclosure through metadata writes.
-
-**Open items:** None.
-
----
-
-## [2026-06-01] claude-sonnet-4-6 — rename PDF Link to External PDF Link; add server PDF Link in detail panel
-
-**Action:** In the paper detail panel, renamed `"PDF Link"` (the original `pdf_link` field from the searcher) to `"External PDF Link"`. Added a new `"PDF Link"` row that shows the filename as a clickable link to the locally stored PDF via `GET /api/papers/{doi}/pdf` — only shown when `pdf_path` is set.
-
-**Files changed:**
-- `api/static/papers.html` — detail panel: `pdf_link` row label → `"External PDF Link"`; new `"PDF Link"` row linking to `/api/papers/{doi}/pdf`
-- `VERSION.md` — bumped to `paper-library-v0.1.88`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Used `_pdfUrl(idx, false)` (already in scope inside `openDetail`) to build the server PDF URL, keeping the same DOI encoding logic as the icon buttons.
-
-**Open items:** None.
-
----
