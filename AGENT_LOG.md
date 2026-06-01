@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] codex-gpt-5 — remove Per-Year Proceedings notes/location/month columns from conference UIs
+
+**Action:** Updated conference-facing Per-Year Proceedings tables to remove visible `notes`, `location`, and `month` columns as requested. Applied this in both conference creation and conference edit pages. To avoid unintended data loss for existing records, hidden per-row metadata is preserved via row `dataset` attributes and still sent back in `download_sources` on save.
+
+**Files changed:**
+- `api/static/addconf.html` — Per-Year Proceedings table now shows only `Year`, `URL`, and delete action; hidden `notes` preserved via row dataset
+- `api/static/venue.html` — Per-Year Proceedings table now shows only `Year`, `URL`, and delete action; hidden `location`, `month`, and `notes` preserved via row dataset
+- `VERSION.md` — bumped to `paper-library-v0.1.98`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Kept non-visible source metadata in payloads to preserve backward compatibility with existing conference records and BibTeX-related fields while simplifying the UI.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — review latest Claude filename/bulk-download changes; prevent PDF overwrite collisions
 
 **Action:** Reviewed the newest Claude entries (`v0.1.93`–`v0.1.96`) covering LLM PDF filenames and venue-level Search All/Download All controls. Applied follow-up fixes where needed. In `download_pdf`, LLM-generated names could collide and silently overwrite files (especially in parallel mode); added deterministic destination reservation with collision-resistant suffixing and pre-planned per-paper paths so parallel writes cannot race onto the same filename. Also serialized filename planning in the parallel path (instead of unbounded per-paper LLM calls), added a missing `chat_deployment_name` guard in `generate_pdf_filename`, fixed cancelled-status styling in live task polling (`status-cancelled` instead of error red), and updated `ARCHITECTURE.md` to document filename generation + de-dup behavior.
@@ -20,6 +36,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 - `history/2026-06.md` — received archived AGENT_LOG entries
 
 **Decisions:** Kept filename format behavior intact while adding deterministic disambiguation only when collisions occur, preserving human-readable names but preventing data loss from overwrite races.
+
+**Open items:** None.
+
+---
+
+## [2026-06-01] claude-sonnet-4-6 — remove max-width caps from all non-modal pages
+
+**Action:** Removed `max-width` constraints from page-level cards and nav bars across all narrow pages so content fills the full viewport width. Modals and detail panels retain their `max-width` for readability. Pages updated: `venue.html` (`.card`, `.papers-card`, `nav`), `addconf.html` (`.card`, `nav`), `addjournal.html` (`.card`, `nav`), `tags.html` (`.card`), `admin.html` (`.card`), `strategies.html` (`.new-card`).
+
+**Files changed:**
+- `api/static/venue.html`, `addconf.html`, `addjournal.html`, `tags.html`, `admin.html`, `strategies.html`
+- `VERSION.md` — bumped to `paper-library-v0.1.99`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Listing pages (venues.html, conf.html, journals.html, papers.html) already had no max-width on their cards from an earlier change — only the form/detail pages needed updating.
 
 **Open items:** None.
 
@@ -166,4 +197,3 @@ Example output: `evaluation-utm-conops-drone-deliveries-li-atrd-2025.pdf`
 **Open items:** None.
 
 ---
-

@@ -8,7 +8,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
   h1{font-size:1.4rem;margin-bottom:20px}
-  .card{background:#fff;border-radius:8px;padding:24px;max-width:720px;margin:0 auto;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .card{background:#fff;border-radius:8px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
   .row{display:flex;gap:12px;margin-bottom:14px}
   .row label{flex:0 0 160px;padding-top:6px;font-size:.875rem;color:#555}
   .row input,.row select,.row textarea{flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
@@ -40,7 +40,7 @@
   .tag-suggestions{display:flex;flex-wrap:wrap;gap:5px}
   .tag-sugg{padding:2px 10px;border-radius:12px;font-size:.78rem;cursor:pointer;border:1px solid #bbb;background:#fff;color:#444;user-select:none}
   .tag-sugg.active{background:#0066cc;color:#fff;border-color:#0066cc}
-  nav{margin:0 auto 16px auto;max-width:720px;font-size:.875rem}
+  nav{margin:0 0 16px 0;font-size:.875rem}
   nav a{color:#0066cc;text-decoration:none;margin-right:12px}
   nav a:hover{text-decoration:underline}
   nav a.active{font-weight:600;color:#333}
@@ -109,7 +109,7 @@
   <div class="section-title">Per-Year Proceedings</div>
   <p style="font-size:.8rem;color:#888;margin-bottom:8px">Use when individual years have separate URLs. Leave empty if the Proceedings URL above covers all years.</p>
   <table id="sources-table">
-    <thead><tr><th>Year</th><th>URL</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Year</th><th>URL</th><th></th></tr></thead>
     <tbody id="sources-body"></tbody>
   </table>
   <button class="btn btn-secondary" style="margin-top:8px" onclick="addSourceRow()">+ Add Year</button>
@@ -217,9 +217,9 @@ function set(id,val){document.getElementById(id).value=val==null?'':val;}
 
 function addSourceRow(name='',url='',notes=''){
   const tr=document.createElement('tr');
+  tr.dataset.notes=String(notes||'');
   tr.innerHTML=`<td><input type="text" value="${esc(name)}" placeholder="e.g. 2024"></td>
     <td><input type="url" value="${esc(url)}" placeholder="https://"></td>
-    <td><input type="text" value="${esc(notes)}"></td>
     <td><button class="btn btn-danger" onclick="this.closest('tr').remove()">✕</button></td>`;
   document.getElementById('sources-body').appendChild(tr);
 }
@@ -229,7 +229,7 @@ function esc(s){return String(s).replace(/"/g,'&quot;');}
 function getForm(){
   const sources=[...document.querySelectorAll('#sources-body tr')].map(tr=>{
     const inputs=tr.querySelectorAll('input');
-    return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:inputs[2].value.trim()};
+    return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:(tr.dataset.notes||'').trim()};
   }).filter(s=>s.name||s.url);
   return{
     short_name:document.getElementById('f-short_name').value.trim(),
