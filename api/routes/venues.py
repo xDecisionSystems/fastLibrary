@@ -470,22 +470,35 @@ def _call_searcher(request_spec: dict) -> dict | list:
     raise RuntimeError("searcher API returned unsupported JSON payload")
 
 
-def _call_pdf_download(url: str, paper: dict) -> bytes:
+def _call_pdf_download(url: str, paper: dict, retries: int = 3, backoff: float = 5.0) -> bytes:
+    import time
+    from http.client import IncompleteRead
     body = json.dumps(paper).encode("utf-8")
-    req = urllib_request.Request(
-        url=url,
-        data=body,
-        headers={"Content-Type": "application/json", "Accept": "application/pdf"},
-        method="POST",
-    )
-    try:
-        with urllib_request.urlopen(req, timeout=180) as resp:
-            return resp.read()
-    except urllib_error.HTTPError as exc:
-        err_body = exc.read().decode("utf-8", errors="ignore").strip()
-        raise RuntimeError(f"PDF download returned {exc.code}: {err_body or exc.reason}") from exc
-    except urllib_error.URLError as exc:
-        raise RuntimeError(f"PDF download request failed: {exc.reason}") from exc
+    last_exc: Exception = RuntimeError("no attempts made")
+    for attempt in range(max(1, retries)):
+        if attempt > 0:
+            time.sleep(backoff * attempt)
+        req = urllib_request.Request(
+            url=url,
+            data=body,
+            headers={"Content-Type": "application/json", "Accept": "application/pdf"},
+            method="POST",
+        )
+        try:
+            with urllib_request.urlopen(req, timeout=180) as resp:
+                return resp.read()
+        except IncompleteRead as exc:
+            last_exc = RuntimeError(f"PDF download incomplete (attempt {attempt+1}/{retries}): {exc}")
+        except urllib_error.HTTPError as exc:
+            err_body = exc.read().decode("utf-8", errors="ignore").strip()
+            err = RuntimeError(f"PDF download returned {exc.code}: {err_body or exc.reason}")
+            if exc.code in (502, 503, 504):
+                last_exc = err
+            else:
+                raise err from exc
+        except urllib_error.URLError as exc:
+            last_exc = RuntimeError(f"PDF download request failed: {exc.reason}")
+    raise last_exc
 
 
 def _apply_download_pdfs(
@@ -507,6 +520,8 @@ def _apply_download_pdfs(
     dest_dir = PDF_DIR / subdir
     dest_dir.mkdir(parents=True, exist_ok=True)
 
+    retries = int(step_config.get("retries") or 3)
+    backoff = float(step_config.get("backoff") or 5.0)
     updated: list[dict] = []
     reserved_names: set[str] = set()
     for paper in candidates:
@@ -518,7 +533,7 @@ def _apply_download_pdfs(
         filename = _pdf_filename_for_paper(paper, venue_doc, year)
         dest_path = _reserve_pdf_dest_path(dest_dir, filename, paper, reserved_names)
         try:
-            pdf_bytes = _call_pdf_download(download_url, paper)
+            pdf_bytes = _call_pdf_download(download_url, paper, retries=retries, backoff=backoff)
             dest_path.write_bytes(pdf_bytes)
             paper = dict(paper)
             paper["pdf_path"] = str(dest_path)
@@ -589,9 +604,13 @@ async def _apply_download_pdfs_parallel(
             if on_progress:
                 await on_progress(1)
             return
+        retries = int(step_config.get("retries") or 3)
+        backoff = float(step_config.get("backoff") or 5.0)
         async with semaphore:
             try:
-                pdf_bytes = await asyncio.to_thread(_call_pdf_download, download_url, paper)
+                pdf_bytes = await asyncio.to_thread(
+                    _call_pdf_download, download_url, paper, retries, backoff
+                )
                 dest_path.write_bytes(pdf_bytes)
                 paper = dict(paper)
                 paper["pdf_path"] = str(dest_path)

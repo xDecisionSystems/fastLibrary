@@ -41,6 +41,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — retry logic for transient PDF download failures
+
+**Action:** `IncompleteRead` and 502/503/504 errors from the searcher are transient (dropped connections, Google Drive throttling). Added retry-with-back-off to `_call_pdf_download`: up to `retries` attempts with `backoff * attempt` seconds between each. `IncompleteRead` and gateway errors (502/503/504) are retried; non-retryable HTTP errors (e.g. 404, 400) raise immediately. Added `retries` and `backoff` params to both sequential and parallel download paths, read from the strategy step config. Set `retries: 3, backoff: 5` in `strategies/atrd.json`.
+
+**Files changed:**
+- `api/routes/venues.py` — `_call_pdf_download` accepts `retries`/`backoff`; both download functions pass them from step config
+- `strategies/atrd.json` — `retries: 3`, `backoff: 5` added to `download_pdf` step config
+- `VERSION.md` — bumped to `paper-library-v0.2.1`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Back-off is linear (`5s * attempt`) — attempt 1 waits 5s, attempt 2 waits 10s. Keeps it simple and predictable. `IncompleteRead` is imported from `http.client` at call time (no new top-level import needed). 502 is retried because it came directly from the error report; 503/504 are retried for the same reason (transient gateway issues).
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — fix parallel download rows disappearing during Download All
 
 **Action:** When multiple years were downloading simultaneously via Download All, each year's poll loop called `loadPapers()` on completion, which re-rendered the entire table and wiped the live progress indicators for still-running years. Fixed by checking `Object.keys(_pollTimers).length === 0` before calling `loadPapers()` — the full reload only happens when the last active poll finishes. In-progress rows remain visible and update in-place until all downloads complete.
