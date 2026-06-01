@@ -454,7 +454,9 @@ log "Creating data directories ..."
 lxc_exec "$VMID" "
   mkdir -p /opt/paper-library/pdf
   mkdir -p /opt/paper-library/venues
-  chown paperuser:paperuser /opt/paper-library/pdf /opt/paper-library/venues
+  mkdir -p /opt/paper-library/strategies
+  mkdir -p /opt/paper-library/tasks
+  chown paperuser:paperuser /opt/paper-library/pdf /opt/paper-library/venues /opt/paper-library/strategies /opt/paper-library/tasks
 "
 
 # ─── paper-library systemd service ───────────────────────────────────────────

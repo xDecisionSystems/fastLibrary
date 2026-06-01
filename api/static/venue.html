@@ -355,6 +355,17 @@ async function doSave(){
 }
 
 // ── papers section ────────────────────────────────────────────────────────────
+const _pollTimers={};  // year -> timer id
+
+function _actionsCell(year, running){
+  if(running) return `
+    <span id="dl-progress-${year}" style="font-size:.82rem;color:#555"></span>
+    <button class="btn btn-secondary" onclick="cancelDownload(${year})">Cancel</button>`;
+  return `
+    <button class="btn btn-search" onclick="searchYear(${year})">Search</button>
+    <button class="btn btn-primary" onclick="downloadYear(${year})">Download</button>`;
+}
+
 function renderPapers(){
   const tbody=document.getElementById('papers-tbody');
   tbody.innerHTML='';
@@ -362,6 +373,7 @@ function renderPapers(){
   document.getElementById('papers-empty').style.display=paperRows.length?'none':'';
   paperRows.forEach((r)=>{
     const tr=document.createElement('tr');
+    const running=!!_pollTimers[r.year];
     const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':'');
     const statusLabel=r.last_status?r.last_status.toUpperCase():'—';
     const foundLabel=Number.isFinite(r.found_papers)?String(r.found_papers):'—';
@@ -370,15 +382,60 @@ function renderPapers(){
     tr.innerHTML=`
       <td class="mono">${r.year}</td>
       <td id="found-${r.year}">${foundLabel}</td>
-      <td>${Number.isFinite(r.downloaded_papers)?r.downloaded_papers:0}</td>
+      <td id="dl-count-${r.year}">${Number.isFinite(r.downloaded_papers)?r.downloaded_papers:0}</td>
       <td>${esc(formatDate(r.last_attempted_at))}</td>
-      <td><span class="${statusClass}">${statusLabel}</span>${errorSuffix}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-search" onclick="searchYear(${r.year})">Search</button>
-        <button class="btn btn-primary" onclick="downloadYear(${r.year})">Download</button>
+      <td id="dl-status-${r.year}"><span class="${statusClass}">${statusLabel}</span>${errorSuffix}</td>
+      <td id="dl-actions-${r.year}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${_actionsCell(r.year, running)}
       </td>`;
     tbody.appendChild(tr);
   });
+}
+
+function _applyTaskToRow(year, task){
+  const countEl=document.getElementById(`dl-count-${year}`);
+  const statusEl=document.getElementById(`dl-status-${year}`);
+  const actionsEl=document.getElementById(`dl-actions-${year}`);
+  const progressEl=document.getElementById(`dl-progress-${year}`);
+  if(!countEl)return;
+
+  if(task.status==='running'){
+    if(countEl) countEl.textContent=task.downloaded||0;
+    if(progressEl) progressEl.textContent=`Downloading ${task.downloaded||0}/${task.total||'?'}…`;
+    if(statusEl) statusEl.innerHTML='<span style="color:#0066cc;font-weight:600">RUNNING</span>';
+  } else {
+    if(countEl) countEl.textContent=task.downloaded||0;
+    const cls=task.status==='success'||task.status==='partial'?'status-ok':'status-err';
+    const label=(task.status||'').toUpperCase();
+    const errNote=task.errors&&task.errors.length?`<div style="font-size:.74rem;color:#777">${esc(task.errors.slice(0,2).join('; '))}</div>`:'';
+    if(statusEl) statusEl.innerHTML=`<span class="${cls}">${label}</span>${errNote}`;
+    if(actionsEl) actionsEl.innerHTML=_actionsCell(year,false);
+  }
+}
+
+function _startPolling(year){
+  if(_pollTimers[year]) return;
+  const actionsEl=document.getElementById(`dl-actions-${year}`);
+  if(actionsEl) actionsEl.innerHTML=_actionsCell(year,true);
+  const statusEl=document.getElementById(`dl-status-${year}`);
+  if(statusEl) statusEl.innerHTML='<span style="color:#0066cc;font-weight:600">RUNNING</span>';
+
+  async function poll(){
+    try{
+      const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}/status`);
+      const task=await r.json();
+      _applyTaskToRow(year,task);
+      if(task.status==='running'){
+        _pollTimers[year]=setTimeout(poll,2000);
+      } else {
+        delete _pollTimers[year];
+        await loadPapers();
+      }
+    }catch(e){
+      delete _pollTimers[year];
+    }
+  }
+  _pollTimers[year]=setTimeout(poll,1000);
 }
 
 function addYear(){
@@ -408,18 +465,35 @@ async function loadPapers(){
     })).filter(row=>Number.isInteger(row.year));
     setPapersStatus('','');
     renderPapers();
+    // Resume polling for any year that already has a running task
+    for(const row of paperRows){
+      if(_pollTimers[row.year]) continue;
+      try{
+        const sr=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${row.year}/status`);
+        const task=await sr.json();
+        if(task.status==='running') _startPolling(row.year);
+      }catch(e){}
+    }
   }catch(e){setPapersStatus('Failed to load: '+e.message,'err');}
 }
 
 async function downloadYear(year){
-  setPapersStatus(`Downloading papers for ${year}…`,'');
   try{
-    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}`,{method:'POST'});
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}/start`,{method:'POST'});
     const d=await r.json();
-    if(!r.ok){setPapersStatus(d.detail||'Download failed.','err');await loadPapers();return;}
-    setPapersStatus(`Download complete for ${year}: ${d.downloaded_papers||0} papers.`,'ok');
-    await loadPapers();
+    if(!r.ok){setPapersStatus(d.detail||'Failed to start download.','err');return;}
+    _startPolling(year);
   }catch(e){setPapersStatus('Request failed: '+e.message,'err');}
+}
+
+async function cancelDownload(year){
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}/cancel`,{method:'POST'});
+    if(r.ok){
+      if(_pollTimers[year]){clearTimeout(_pollTimers[year]);delete _pollTimers[year];}
+      await loadPapers();
+    }
+  }catch(e){}
 }
 
 // ── search modal ──────────────────────────────────────────────────────────────

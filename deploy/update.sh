@@ -39,8 +39,8 @@ git -C "${INSTALL_DIR}" pull --ff-only
 
 # ─── Ensure data directories exist with correct ownership ────────────────────
 log "Ensuring data directories ..."
-mkdir -p "${INSTALL_DIR}/pdf" "${INSTALL_DIR}/venues"
-chown paperuser:paperuser "${INSTALL_DIR}/pdf" "${INSTALL_DIR}/venues"
+mkdir -p "${INSTALL_DIR}/pdf" "${INSTALL_DIR}/venues" "${INSTALL_DIR}/strategies" "${INSTALL_DIR}/tasks"
+chown paperuser:paperuser "${INSTALL_DIR}/pdf" "${INSTALL_DIR}/venues" "${INSTALL_DIR}/strategies" "${INSTALL_DIR}/tasks"
 
 # ─── Reinstall dependencies ───────────────────────────────────────────────────
 log "Installing Python dependencies ..."

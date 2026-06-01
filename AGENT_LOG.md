@@ -6,6 +6,39 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — fix step order in atrd strategy and wire upsert_papers step
+
+**Action:** Fixed two issues in the ATRD download strategy. (1) Step order was wrong — `download_pdf` ran before `generate_doi`, so papers had no DOI when the PDF filename was derived and when they were upserted. Corrected order: `fetch_papers` → `generate_doi` → `download_pdf` → `build_bibtex` → `upsert_papers`. (2) The `upsert_papers` step inherited from `_default` was never executed — the upsert was hardcoded outside the step loop. Added `bulk_upsert` step type handling in `_run_download_task`: when the strategy declares `upsert_papers`, the loop executes it as part of the step chain and sets `upsert_after_steps=False` to suppress the fallback hardcoded upsert. Strategies without a `bulk_upsert` step fall back to the hardcoded upsert so existing behavior is preserved.
+
+**Files changed:**
+- `strategies/atrd.json` — corrected step order; added explicit `upsert_papers` step
+- `api/routes/venues.py` — `_run_download_task` handles `bulk_upsert` step type; `upsert_after_steps` flag suppresses fallback when strategy declares its own upsert
+- `VERSION.md` — bumped to `paper-library-v0.1.78`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** `upsert_after_steps` fallback ensures strategies that don't declare `upsert_papers` (e.g. venues with no strategy) still upsert papers. Per-paper upsert inside the step loop means the record is written to MongoDB immediately after its PDF is downloaded and BibTeX is built — no batching delay.
+
+**Open items:** None.
+
+---
+
+## [2026-06-01] claude-sonnet-4-6 — async per-paper download with live progress and cancel
+
+**Action:** Replaced the single blocking download call with an async background task system. Three new endpoints: `POST /{slug}/paper-downloads/{year}/start` launches a background task and returns immediately; `GET /{slug}/paper-downloads/{year}/status` returns current progress; `POST /{slug}/paper-downloads/{year}/cancel` signals the running task to stop. Task state is persisted to `tasks/<slug>-<year>.json` so progress survives page navigation and server restarts. The background task iterates papers one at a time, running strategy steps (generate_doi, download_pdf, build_bibtex) and upserting each paper individually, writing updated counts after every paper. Added `TASKS_DIR = Path("tasks")` to config. The venue page polls `/status` every 2 seconds while a download is running, updates the Downloaded count cell live, shows "Downloading X/Y…" inline, and replaces the Download button with a Cancel button. On page load, any year with a running task automatically resumes polling.
+
+**Files changed:**
+- `config/settings.py` — added `TASKS_DIR`
+- `api/routes/venues.py` — added `BackgroundTasks` import; `_task_path`, `_read_task`, `_write_task`, `_task_running`, `_persist_download_stats`, `_run_download_task` helpers; `start_download`, `get_download_status`, `cancel_download` endpoints
+- `api/static/venue.html` — `_pollTimers` map; `_actionsCell`, `_applyTaskToRow`, `_startPolling` helpers; updated `downloadYear` to use `/start`; added `cancelDownload`; `loadPapers` resumes polling on page load
+- `VERSION.md` — bumped to `paper-library-v0.1.77`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Task state is file-based (not in-memory) so it persists across restarts and is readable by any future agent or tool. Cancel is cooperative — the task checks for `"cancelled"` status between each paper. The old `POST /{slug}/paper-downloads/{year}` endpoint is kept as-is for backward compatibility (scripts/CLI use).
+
+**Open items:** `tasks/` directory should be added to `.gitignore` and created on deploy. Task files are never cleaned up — a future maintenance step could prune files older than N days.
+
+---
+
 ## [2026-05-31] codex-gpt-5 — implement post-review fixes for BibTeX, strategy auto-selection, and docs
 **Action:** Implemented the requested fixes from the post-review findings. Hardened BibTeX generation so blank/whitespace-only author entries no longer crash cite-key creation. Improved BibTeX completeness by backfilling `venue_long`, `venue`, and `publication_year` from venue/year context before entry generation. Expanded default strategy auto-selection from exact-file match to include strategy `aliases`, unique prefix matches, and unique token-subset matches, while preserving deterministic/empty fallback behavior when ambiguous. Synced `ARCHITECTURE.md` with current contracts (searcher default base path, new paper fields, merged venue/getpapers UX).  
 **Files changed:** `api/routes/venues.py`, `ARCHITECTURE.md`, `VERSION.md`, `AGENT_LOG.md`  

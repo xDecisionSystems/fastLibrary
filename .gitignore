@@ -24,3 +24,7 @@ venues/*.json
 # Downloads folder (track folder, ignore contents)
 downloads/**
 !downloads/.gitkeep
+
+# Task progress files (runtime state, not committed)
+tasks/**
+!tasks/.gitkeep

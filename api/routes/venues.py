@@ -7,9 +7,9 @@ from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from config.settings import PDF_DIR, STRATEGIES_DIR, VENUES_DIR, settings
+from config.settings import PDF_DIR, STRATEGIES_DIR, TASKS_DIR, VENUES_DIR, settings
 from services import mongo
 from services.models import Paper, VenueRecord
 from services.venues import prefill_venue
@@ -732,6 +732,147 @@ def _extract_downloaded_count(response_payload: dict | list, fallback_count: int
     return fallback_count
 
 
+# ── download task store ───────────────────────────────────────────────────────
+
+def _task_path(slug: str, year: int) -> Path:
+    return TASKS_DIR / f"{slug}-{year}.json"
+
+
+def _read_task(slug: str, year: int) -> dict:
+    p = _task_path(slug, year)
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_task(slug: str, year: int, data: dict) -> None:
+    TASKS_DIR.mkdir(parents=True, exist_ok=True)
+    _task_path(slug, year).write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _task_running(slug: str, year: int) -> bool:
+    return _read_task(slug, year).get("status") == "running"
+
+
+async def _run_download_task(slug: str, year: int) -> None:
+    path = _venue_path(slug)
+    if not path.exists():
+        _write_task(slug, year, {"status": "error", "error": f"Venue '{slug}' not found"})
+        return
+
+    doc = _load_venue_doc(path)
+    attempted_at = _utc_now_iso()
+
+    try:
+        # Fetch paper list (search steps only — no PDF download yet)
+        _, candidates = await _search_papers_for_venue(doc, year, download_pdfs=False)
+    except Exception as exc:
+        _write_task(slug, year, {
+            "status": "error", "error": str(exc),
+            "total": 0, "downloaded": 0, "started_at": attempted_at,
+        })
+        _persist_download_stats(slug, year, doc, path, attempted_at, 0, str(exc))
+        return
+
+    total = len(candidates)
+    _write_task(slug, year, {
+        "status": "running", "total": total, "downloaded": 0,
+        "errors": [], "started_at": attempted_at,
+    })
+
+    # Re-run strategy steps that involve downloading (generate_doi, build_bibtex, download_pdf)
+    # but apply them one paper at a time so we can report progress.
+    strategy_slug = str(doc.get("strategy") or "").strip()
+    resolved = _resolve_strategy(strategy_slug) if strategy_slug else {}
+    steps = resolved.get("steps", [])
+
+    downloaded = 0
+    errors: list[str] = []
+
+    for i, candidate in enumerate(candidates):
+        task = _read_task(slug, year)
+        if task.get("status") == "cancelled":
+            return
+
+        paper_list = [candidate]
+
+        upsert_after_steps = True
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
+            stype = step.get("type")
+            try:
+                if stype == "generate_doi":
+                    paper_list = _apply_generate_doi(paper_list, config, doc, year)
+                elif stype == "download_pdf":
+                    paper_list = await asyncio.to_thread(
+                        _apply_download_pdfs, paper_list, config, doc, year
+                    )
+                elif stype == "build_bibtex":
+                    paper_list = _apply_build_bibtex(paper_list, config, doc, year)
+                elif stype == "bulk_upsert":
+                    overwrite = bool(config.get("overwrite_missing_fields", False))
+                    for raw in paper_list:
+                        paper = _to_paper_model(raw, doc, year)
+                        if paper is None:
+                            continue
+                        try:
+                            await mongo.upsert_paper(paper, overwrite_missing_fields=overwrite)
+                            downloaded += 1
+                        except Exception as exc:
+                            errors.append(f"{raw.get('doi', '?')}: {exc}")
+                    upsert_after_steps = False
+            except Exception as exc:
+                if stype != "bulk_upsert":
+                    errors.append(str(exc))
+
+        if upsert_after_steps:
+            for raw in paper_list:
+                paper = _to_paper_model(raw, doc, year)
+                if paper is None:
+                    continue
+                try:
+                    await mongo.upsert_paper(paper, overwrite_missing_fields=False)
+                    downloaded += 1
+                except Exception as exc:
+                    errors.append(f"{raw.get('doi', '?')}: {exc}")
+
+        _write_task(slug, year, {
+            "status": "running", "total": total, "downloaded": downloaded,
+            "errors": errors, "started_at": attempted_at,
+        })
+
+    final_status = "success" if not errors else "partial"
+    _write_task(slug, year, {
+        "status": final_status, "total": total, "downloaded": downloaded,
+        "errors": errors, "started_at": attempted_at, "finished_at": _utc_now_iso(),
+    })
+    _persist_download_stats(slug, year, doc, path, attempted_at, downloaded,
+                            "; ".join(errors[:3]) if errors else "")
+
+
+def _persist_download_stats(
+    slug: str, year: int, doc: dict, path: Path,
+    attempted_at: str, downloaded: int, error: str,
+) -> None:
+    stats = _normalize_download_stats(doc.get("paper_downloads", {}))
+    stats[str(year)] = {
+        "downloaded_papers": downloaded,
+        "last_attempted_at": attempted_at,
+        "last_status": "success" if not error else "error",
+        "last_error": error,
+    }
+    doc["paper_downloads"] = stats
+    try:
+        path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _remove_tag_from_venues(tag: str) -> None:
     VENUES_DIR.mkdir(parents=True, exist_ok=True)
     for venue_file in sorted(VENUES_DIR.glob("*.json")):
@@ -932,6 +1073,50 @@ async def search_and_cache_papers_for_conference_year(slug: str, year: int):
             status_code=502,
             detail=f"failed to fetch papers from external searcher API: {exc}",
         ) from exc
+
+
+@router.post("/{slug}/paper-downloads/{year}/start")
+async def start_download(slug: str, year: int, background_tasks: BackgroundTasks):
+    parsed_year = _parse_year(year)
+    if parsed_year is None:
+        raise HTTPException(status_code=422, detail=f"year must be between {_DOWNLOAD_YEAR_MIN} and next calendar year")
+    path = _venue_path(slug)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Venue '{slug}' not found")
+    doc = _load_venue_doc(path)
+    if doc.get("type") != "conference":
+        raise HTTPException(status_code=400, detail="paper downloads are only supported for conference venues")
+    if _task_running(slug, parsed_year):
+        raise HTTPException(status_code=409, detail="a download is already in progress for this year")
+    _write_task(slug, parsed_year, {
+        "status": "running", "total": 0, "downloaded": 0,
+        "errors": [], "started_at": _utc_now_iso(),
+    })
+    background_tasks.add_task(_run_download_task, slug, parsed_year)
+    return {"slug": slug, "year": parsed_year, "status": "started"}
+
+
+@router.get("/{slug}/paper-downloads/{year}/status")
+async def get_download_status(slug: str, year: int):
+    parsed_year = _parse_year(year)
+    if parsed_year is None:
+        raise HTTPException(status_code=422, detail=f"year must be between {_DOWNLOAD_YEAR_MIN} and next calendar year")
+    task = _read_task(slug, parsed_year)
+    if not task:
+        return {"slug": slug, "year": parsed_year, "status": "idle"}
+    return {"slug": slug, "year": parsed_year, **task}
+
+
+@router.post("/{slug}/paper-downloads/{year}/cancel")
+async def cancel_download(slug: str, year: int):
+    parsed_year = _parse_year(year)
+    if parsed_year is None:
+        raise HTTPException(status_code=422, detail=f"year must be between {_DOWNLOAD_YEAR_MIN} and next calendar year")
+    task = _read_task(slug, parsed_year)
+    if task.get("status") != "running":
+        raise HTTPException(status_code=409, detail="no running download to cancel")
+    _write_task(slug, parsed_year, {**task, "status": "cancelled", "finished_at": _utc_now_iso()})
+    return {"slug": slug, "year": parsed_year, "status": "cancelled"}
 
 
 @router.post("/{slug}/paper-downloads/{year}")

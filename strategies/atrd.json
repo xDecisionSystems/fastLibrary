@@ -22,6 +22,17 @@
       }
     },
     {
+      "id": "generate_doi",
+      "name": "Generate Synthetic DOI",
+      "type": "generate_doi",
+      "description": "ATRD papers are not registered with DOI.org. Generate a deterministic synthetic DOI for any paper that lacks one, derived from the venue slug, year, and slugified title.",
+      "config": {
+        "prefix": "10.0000",
+        "namespace": "{conference.slug}",
+        "notes": "Generated DOI format: 10.0000/<namespace>.<year>.<title_slug>. doi_synthetic is set to true on all generated DOIs."
+      }
+    },
+    {
       "id": "download_pdf",
       "name": "Download PDFs",
       "type": "download_pdf",
@@ -35,17 +46,6 @@
       }
     },
     {
-      "id": "generate_doi",
-      "name": "Generate Synthetic DOI",
-      "type": "generate_doi",
-      "description": "ATRD papers are not registered with DOI.org. Generate a deterministic synthetic DOI for any paper that lacks one, derived from the venue slug, year, and slugified title.",
-      "config": {
-        "prefix": "10.0000",
-        "namespace": "{conference.slug}",
-        "notes": "Generated DOI format: 10.0000/<namespace>.<year>.<title_slug>. doi_synthetic is set to true on all generated DOIs."
-      }
-    },
-    {
       "id": "build_bibtex",
       "name": "Build BibTeX Entry",
       "type": "build_bibtex",
@@ -56,6 +56,17 @@
         "address_source": "download_sources[year].location",
         "month_source": "download_sources[year].month",
         "notes": "Omits fields that are empty. doi_synthetic=true is recorded in the note field."
+      }
+    },
+    {
+      "id": "upsert_papers",
+      "name": "Upsert to Library",
+      "type": "bulk_upsert",
+      "description": "Upsert each paper into the MongoDB paper library after PDF download and BibTeX generation are complete.",
+      "config": {
+        "overwrite_missing_fields": false,
+        "overwrite_duplicate_doi": true,
+        "notes": "Runs per-paper in the background download loop. Existing records are updated only for fields returned by the searcher; existing fields not in the response are preserved."
       }
     }
   ]
