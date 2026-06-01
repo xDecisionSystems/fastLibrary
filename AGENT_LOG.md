@@ -41,6 +41,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — fix parallel download rows disappearing during Download All
+
+**Action:** When multiple years were downloading simultaneously via Download All, each year's poll loop called `loadPapers()` on completion, which re-rendered the entire table and wiped the live progress indicators for still-running years. Fixed by checking `Object.keys(_pollTimers).length === 0` before calling `loadPapers()` — the full reload only happens when the last active poll finishes. In-progress rows remain visible and update in-place until all downloads complete.
+
+**Files changed:**
+- `api/static/venue.html` — `_startPolling` completion handler guards `loadPapers()` with active-poll check
+- `VERSION.md` — bumped to `paper-library-v0.2.0`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** `_applyTaskToRow` already updates the completed row's status and actions in-place, so skipping `loadPapers()` while other polls are active loses no information — the row just doesn't get the server-authoritative count until the final reload.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — remove max-width caps from all non-modal pages
 
 **Action:** Removed `max-width` constraints from page-level cards and nav bars across all narrow pages so content fills the full viewport width. Modals and detail panels retain their `max-width` for readability. Pages updated: `venue.html` (`.card`, `.papers-card`, `nav`), `addconf.html` (`.card`, `nav`), `addjournal.html` (`.card`, `nav`), `tags.html` (`.card`), `admin.html` (`.card`), `strategies.html` (`.new-card`).

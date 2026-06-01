@@ -442,7 +442,11 @@ function _startPolling(year){
         _pollTimers[year]=setTimeout(poll,2000);
       } else {
         delete _pollTimers[year];
-        await loadPapers();
+        // Only reload the full table when no other downloads are still running.
+        // If other years are still polling, just update this row in-place.
+        if(Object.keys(_pollTimers).length===0){
+          await loadPapers();
+        }
       }
     }catch(e){
       delete _pollTimers[year];
