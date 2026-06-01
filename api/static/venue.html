@@ -163,6 +163,8 @@
     <input id="year-input" type="number" min="1900" step="1" placeholder="Year (e.g. 2025)">
     <button class="btn btn-secondary" onclick="addYear()">Add Year</button>
     <button class="btn btn-secondary" onclick="loadPapers()">Refresh</button>
+    <button class="btn btn-secondary" id="btn-search-all" onclick="searchAll()" style="margin-left:8px">Search All</button>
+    <button class="btn btn-primary" id="btn-download-all" onclick="downloadAll()">Download All</button>
   </div>
   <table class="papers-table">
     <thead>
@@ -497,6 +499,51 @@ async function cancelDownload(year){
       await loadPapers();
     }
   }catch(e){}
+}
+
+// ── bulk actions ──────────────────────────────────────────────────────────────
+async function searchAll(){
+  const pending=paperRows.filter(r=>r.found_papers===null&&!_pollTimers[r.year]);
+  if(!pending.length){setPapersStatus('All years already searched.','');return;}
+  const btn=document.getElementById('btn-search-all');
+  btn.disabled=true;
+  for(let i=0;i<pending.length;i++){
+    const year=pending[i].year;
+    setPapersStatus(`Searching ${year}… (${i+1}/${pending.length})`,'');
+    try{
+      const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-search/${year}`,{method:'POST'});
+      const d=await r.json();
+      if(r.ok){
+        const foundCell=document.getElementById(`found-${year}`);
+        const total=Number.isFinite(Number(d.total))?Number(d.total):(d.papers||[]).length;
+        if(foundCell) foundCell.textContent=String(total);
+        const row=paperRows.find(r=>r.year===year);
+        if(row) row.found_papers=total;
+      }
+    }catch(e){}
+  }
+  btn.disabled=false;
+  setPapersStatus(`Search complete. ${pending.length} year(s) searched.`,'ok');
+  await loadPapers();
+}
+
+async function downloadAll(){
+  const pending=paperRows.filter(r=>
+    r.downloaded_papers===0 &&
+    r.last_status!=='success' &&
+    !_pollTimers[r.year]
+  );
+  if(!pending.length){setPapersStatus('No years pending download.','');return;}
+  const btn=document.getElementById('btn-download-all');
+  btn.disabled=true;
+  setPapersStatus(`Starting downloads for ${pending.length} year(s)…`,'');
+  for(const row of pending){
+    await downloadYear(row.year);
+    // Brief pause between starts so the server isn't flooded simultaneously
+    await new Promise(res=>setTimeout(res,500));
+  }
+  btn.disabled=false;
+  setPapersStatus(`Download started for ${pending.length} year(s). Monitor progress below.`,'ok');
 }
 
 // ── search modal ──────────────────────────────────────────────────────────────

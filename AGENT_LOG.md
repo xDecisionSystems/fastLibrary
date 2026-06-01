@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — add Search All and Download All buttons to conference venue page
+
+**Action:** Added "Search All" and "Download All" buttons to the Papers section of the conference venue page. Search All runs `POST /paper-search/{year}` sequentially for every year where `found_papers` is null (never searched), updating the Found cell live as each completes. Download All calls `downloadYear()` for every year where `downloaded_papers === 0` and `last_status !== 'success'` and no task is already running, with a 500ms gap between starts; existing polling handles live progress per year. Both buttons are disabled during execution and re-enabled when done.
+
+**Files changed:**
+- `api/static/venue.html` — Search All and Download All buttons in controls bar; `searchAll()` and `downloadAll()` functions
+- `VERSION.md` — bumped to `paper-library-v0.1.96`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Sequential execution for Search All (one year at a time, awaited) prevents hammering the searcher. Download All starts tasks back-to-back with a 500ms gap — each year runs as an independent background task on the server so they proceed in parallel server-side while the UI polls each independently.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — improve PDF filename prompt to prefer distinctive technical terms
 
 **Action:** The previous prompt was choosing leading/generic words from titles (e.g. "procedural_terminal_area_airspace_integration" instead of "procedures_uncrewed_aircraft_untowered_airports"). Updated `_PDF_FILENAME_PROMPT` to explicitly instruct the model to pick the most specific and distinctive nouns/adjectives, avoid generic words (concept, approach, system, integration, analysis), and prefer domain-specific technical terms. Added a concrete example using the target paper. Capped simple_title at 3-5 words (was 3-6).
