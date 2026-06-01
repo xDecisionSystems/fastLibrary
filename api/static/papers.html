@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Papers — Paper Library</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
+  h1{font-size:1.35rem;margin-bottom:16px}
+  nav{margin-bottom:16px;font-size:.875rem}
+  nav a{color:#0066cc;text-decoration:none;margin-right:12px}
+  nav a:hover{text-decoration:underline}
+  nav a.active{font-weight:600;color:#222}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .toolbar input[type=text]{flex:1;min-width:180px;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .toolbar input[type=number]{width:90px;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .toolbar select{padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem;background:#fff}
+  .toolbar label{font-size:.82rem;color:#555;white-space:nowrap}
+  .btn{padding:7px 12px;border:none;border-radius:4px;cursor:pointer;font-size:.85rem}
+  .btn-primary{background:#0066cc;color:#fff}
+  .btn-primary:hover{background:#0052a3}
+  .btn-secondary{background:#e0e0e0;color:#333}
+  .btn-secondary:hover{background:#c8c8c8}
+  .card{background:#fff;border-radius:8px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{text-align:left;padding:10px 12px;background:#f0f0f0;border-bottom:2px solid #ddd;white-space:nowrap;user-select:none;cursor:pointer}
+  th:hover{background:#e4e4e4}
+  th.sort-asc::after{content:' ▲';font-size:.7rem;color:#666}
+  th.sort-desc::after{content:' ▼';font-size:.7rem;color:#666}
+  th.no-sort{cursor:default}
+  th.no-sort:hover{background:#f0f0f0}
+  td{padding:9px 12px;border-bottom:1px solid #eee;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#fafafa}
+  .paper-title{font-weight:500;color:#0066cc;cursor:pointer}
+  .paper-title:hover{text-decoration:underline}
+  .paper-meta{font-size:.78rem;color:#777;margin-top:2px}
+  .tag-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.72rem;background:#e8f0fe;color:#1a56cc;margin:2px 2px 0 0;white-space:nowrap}
+  .dl-yes{color:green;font-weight:600}
+  .dl-no{color:#aaa}
+  .dl-pdf{color:#0066cc;font-size:.78rem}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:.78rem}
+  #summary{font-size:.82rem;color:#666;margin-bottom:8px}
+  #status{font-size:.85rem;color:#666;margin-bottom:8px;min-height:18px}
+  #status.err{color:#b30000}
+  .pagination{display:flex;gap:6px;align-items:center;padding:12px;border-top:1px solid #eee;font-size:.85rem}
+  .pagination button{padding:4px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:.82rem}
+  .pagination button:disabled{opacity:.4;cursor:default}
+  .pagination button:hover:not(:disabled){background:#f0f0f0}
+  .pagination .page-info{color:#666;margin:0 6px}
+  /* Detail panel */
+  .detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px}
+  .detail-overlay.open{display:flex}
+  .detail-panel{background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.2);width:100%;max-width:720px;max-height:85vh;display:flex;flex-direction:column}
+  .detail-header{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e0e0e0;gap:12px}
+  .detail-header h2{font-size:1rem;font-weight:600;margin:0;line-height:1.4}
+  .detail-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#555;flex-shrink:0}
+  .detail-body{overflow-y:auto;padding:16px 20px;flex:1}
+  .detail-row{display:flex;gap:8px;margin-bottom:10px;font-size:.875rem}
+  .detail-label{flex:0 0 120px;color:#777;padding-top:1px}
+  .detail-value{flex:1;word-break:break-word}
+  .detail-bibtex{background:#f5f5f5;border-radius:4px;padding:10px 12px;font-family:ui-monospace,monospace;font-size:.78rem;white-space:pre-wrap;word-break:break-all;margin-top:4px;max-height:200px;overflow-y:auto}
+  .copy-btn{padding:3px 9px;font-size:.75rem;border:1px solid #ccc;border-radius:3px;background:#fff;cursor:pointer;margin-left:8px}
+  .copy-btn:hover{background:#f0f0f0}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/venues">All Venues</a>
+  <a href="/conferences">Conferences</a>
+  <a href="/journals">Journals</a>
+  <a href="/papers" class="active">Papers</a>
+  <a href="/tags">Tags</a>
+  <a href="/strategies">Strategies</a>
+</nav>
+
+<h1>Papers</h1>
+
+<div class="toolbar">
+  <input type="text" id="q-title" placeholder="Search title…" onkeydown="if(event.key==='Enter')search()">
+  <label>Year</label>
+  <input type="number" id="q-year-low" placeholder="From" min="1900" step="1">
+  <input type="number" id="q-year-high" placeholder="To" min="1900" step="1">
+  <label>Downloaded</label>
+  <select id="q-ingested">
+    <option value="">Any</option>
+    <option value="true">Yes</option>
+    <option value="false">No</option>
+  </select>
+  <label>Tags</label>
+  <input type="text" id="q-tags" placeholder="tag1, tag2" style="min-width:120px;flex:0 0 140px">
+  <button class="btn btn-primary" onclick="search()">Search</button>
+  <button class="btn btn-secondary" onclick="clearFilters()">Clear</button>
+</div>
+
+<div id="summary"></div>
+<div id="status"></div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th onclick="setSort('title')">Paper</th>
+        <th class="no-sort">Tags</th>
+        <th onclick="setSort('publication_year')" style="width:70px">Year</th>
+        <th onclick="setSort('venue')">Venue</th>
+        <th class="no-sort" style="width:100px">Downloaded</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="empty" style="display:none;padding:20px;color:#777;font-size:.9rem">No papers found.</div>
+  <div class="pagination">
+    <button id="btn-prev" onclick="prevPage()" disabled>← Prev</button>
+    <span class="page-info" id="page-info"></span>
+    <button id="btn-next" onclick="nextPage()">Next →</button>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<div id="detail-overlay" class="detail-overlay" role="dialog" aria-modal="true">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <h2 id="detail-title">Paper</h2>
+      <button class="detail-close" onclick="closeDetail()" aria-label="Close">&times;</button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+const PAGE_SIZE = 50;
+let skip = 0;
+let total = 0;
+let sortKey = '';
+let sortDir = 1; // 1=asc, -1=desc
+
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+
+function setStatus(msg, cls=''){
+  const el=document.getElementById('status');
+  el.textContent=msg; el.className=cls;
+}
+
+// ── sort ──────────────────────────────────────────────────────────────────────
+function setSort(key){
+  if(sortKey===key) sortDir*=-1;
+  else{sortKey=key;sortDir=1;}
+  skip=0;
+  document.querySelectorAll('th').forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if(th.getAttribute('onclick')===`setSort('${key}')`)
+      th.classList.add(sortDir===1?'sort-asc':'sort-desc');
+  });
+  load();
+}
+
+// ── fetch ─────────────────────────────────────────────────────────────────────
+function buildParams(){
+  const p=new URLSearchParams();
+  const title=document.getElementById('q-title').value.trim();
+  if(title) p.set('title',title);
+  const yLow=document.getElementById('q-year-low').value.trim();
+  if(yLow) p.set('year_low',yLow);
+  const yHigh=document.getElementById('q-year-high').value.trim();
+  if(yHigh) p.set('year_high',yHigh);
+  const ing=document.getElementById('q-ingested').value;
+  if(ing!=='') p.set('ingested',ing);
+  const tags=document.getElementById('q-tags').value.trim();
+  if(tags) p.set('tags',tags);
+  p.set('skip',String(skip));
+  p.set('limit',String(PAGE_SIZE));
+  return p;
+}
+
+async function load(){
+  setStatus('Loading…');
+  try{
+    const r=await fetch('/api/papers?'+buildParams());
+    const d=await r.json();
+    if(!r.ok){setStatus(d.detail||'Failed to load.','err');return;}
+    total=d.total||0;
+    render(d.results||[]);
+    setStatus('');
+  }catch(e){setStatus('Failed to load: '+e.message,'err');}
+}
+
+function search(){skip=0;load();}
+
+function clearFilters(){
+  document.getElementById('q-title').value='';
+  document.getElementById('q-year-low').value='';
+  document.getElementById('q-year-high').value='';
+  document.getElementById('q-ingested').value='';
+  document.getElementById('q-tags').value='';
+  sortKey=''; sortDir=1;
+  document.querySelectorAll('th').forEach(th=>th.classList.remove('sort-asc','sort-desc'));
+  skip=0; load();
+}
+
+function prevPage(){if(skip>0){skip=Math.max(0,skip-PAGE_SIZE);load();}}
+function nextPage(){if(skip+PAGE_SIZE<total){skip+=PAGE_SIZE;load();}}
+
+// ── render ────────────────────────────────────────────────────────────────────
+function render(results){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  document.getElementById('empty').style.display=results.length?'none':'block';
+
+  // client-side sort when API doesn't support it
+  if(sortKey){
+    results=results.slice().sort((a,b)=>{
+      const av=a[sortKey]??''; const bv=b[sortKey]??'';
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+  }
+
+  results.forEach(p=>{
+    const tr=document.createElement('tr');
+    const authors=Array.isArray(p.authors)&&p.authors.length
+      ? p.authors.slice(0,3).join(', ')+(p.authors.length>3?' et al.':'')
+      : '—';
+    const tags=(p.tags||[]).map(t=>`<span class="tag-badge">${esc(t)}</span>`).join('');
+    const dlStatus=p.pdf_path
+      ? `<span class="dl-yes">✓</span> <span class="dl-pdf">${esc(p.pdf_path.split('/').pop())}</span>`
+      : (p.ingested?'<span class="dl-yes">✓ Ingested</span>':'<span class="dl-no">—</span>');
+    tr.innerHTML=`
+      <td>
+        <div class="paper-title" onclick="openDetail(${JSON.stringify(JSON.stringify(p))})">${esc(p.title||'Untitled')}</div>
+        <div class="paper-meta">${esc(authors)}</div>
+        <div class="mono" style="margin-top:2px">${esc(p.doi||'')}</div>
+      </td>
+      <td>${tags||'—'}</td>
+      <td>${p.publication_year||'—'}</td>
+      <td>${esc(p.venue_long||p.venue||'—')}</td>
+      <td>${dlStatus}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const page=Math.floor(skip/PAGE_SIZE)+1;
+  const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  document.getElementById('page-info').textContent=`Page ${page} of ${pages}`;
+  document.getElementById('summary').textContent=`${total.toLocaleString()} paper${total===1?'':'s'}`;
+  document.getElementById('btn-prev').disabled=skip===0;
+  document.getElementById('btn-next').disabled=skip+PAGE_SIZE>=total;
+}
+
+// ── detail panel ──────────────────────────────────────────────────────────────
+function openDetail(jsonStr){
+  const p=JSON.parse(jsonStr);
+  document.getElementById('detail-title').textContent=p.title||'Untitled';
+
+  const authors=Array.isArray(p.authors)?p.authors.join(', '):'—';
+  const tags=(p.tags||[]).map(t=>`<span class="tag-badge">${esc(t)}</span>`).join(' ')||'—';
+
+  let html='';
+  const row=(label,val)=>{
+    if(!val&&val!==0) return '';
+    return `<div class="detail-row"><div class="detail-label">${label}</div><div class="detail-value">${val}</div></div>`;
+  };
+
+  html+=row('DOI', `<span class="mono">${esc(p.doi)}</span>`);
+  html+=row('Authors', esc(authors));
+  html+=row('Year', p.publication_year);
+  html+=row('Venue', esc(p.venue_long||p.venue||''));
+  html+=row('Source', esc(p.source));
+  html+=row('Tags', tags);
+  if(p.url) html+=row('URL', `<a href="${esc(p.url)}" target="_blank">${esc(p.url)}</a>`);
+  if(p.pdf_link) html+=row('PDF Link', `<a href="${esc(p.pdf_link)}" target="_blank">Open PDF</a>`);
+  if(p.pdf_path) html+=row('PDF Path', `<span class="mono">${esc(p.pdf_path)}</span>`);
+  html+=row('Ingested', p.ingested?'Yes':'No');
+  if(p.doi_synthetic) html+=row('DOI', '<span style="color:#888;font-size:.8rem">Synthetic (not registered with doi.org)</span>');
+  if(p.is_best_paper) html+=row('Award', '<span style="color:#b8860b;font-weight:600">⭐ Best Paper</span>');
+  if(p.presentation_url) html+=row('Slides', `<a href="${esc(p.presentation_url)}" target="_blank">Presentation</a>`);
+  if(p.snippet) html+=row('Snippet', `<div style="font-size:.82rem;color:#555">${esc(p.snippet)}</div>`);
+
+  if(p.bibtex){
+    html+=`<div class="detail-row"><div class="detail-label">BibTeX<button class="copy-btn" onclick="copyBibtex(this)">Copy</button></div>
+      <div class="detail-value"><div class="detail-bibtex" id="bibtex-text">${esc(p.bibtex)}</div></div></div>`;
+  }
+
+  document.getElementById('detail-body').innerHTML=html;
+  document.getElementById('detail-overlay').classList.add('open');
+}
+
+function copyBibtex(btn){
+  const text=document.getElementById('bibtex-text').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent='Copy',2000);
+  });
+}
+
+function closeDetail(){document.getElementById('detail-overlay').classList.remove('open');}
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeDetail();});
+document.getElementById('detail-overlay').addEventListener('click',(e)=>{if(e.target===e.currentTarget)closeDetail();});
+
+load();
+</script>
+</body>
+</html>

@@ -69,7 +69,7 @@ def main() -> None:
             "overwrite_duplicate_doi": args.overwrite_duplicate_doi,
         }
     ).encode("utf-8")
-    url = args.api_url.rstrip("/") + "/papers/bulk"
+    url = args.api_url.rstrip("/") + "/api/papers/bulk"
 
     req = urllib.request.Request(
         url,

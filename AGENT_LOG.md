@@ -6,6 +6,24 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — add /papers page with search, filters, and detail panel
+
+**Action:** Created `api/static/papers.html` — a paginated, searchable list of all papers backed by `GET /api/papers`. Filters: title (full-text), year range, downloaded status, tags. Columns: Paper (title + authors + DOI), Tags, Year, Venue, Downloaded. Clicking a title opens a detail panel showing all fields including BibTeX with a copy button. Added `GET /papers` page route to `main.py`. Moved papers API prefix from `/papers` to `/api/papers` so the page URL `/papers` is unambiguous; updated `scripts/import_searcher.py` to use the new prefix. Added Papers nav link to all existing pages.
+
+**Files changed:**
+- `api/static/papers.html` — new papers listing page
+- `api/main.py` — `/papers` page route added; papers API prefix changed to `/api/papers`
+- `scripts/import_searcher.py` — bulk URL updated to `/api/papers/bulk`
+- `api/static/conf.html`, `venues.html`, `journals.html`, `venue.html`, `addconf.html`, `addjournal.html`, `tags.html`, `strategies.html` — Papers nav link added
+- `VERSION.md` — bumped to `paper-library-v0.1.81`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** API moved to `/api/papers` to match the pattern used by venues and strategies. Client-side sort on top of paginated results since the API doesn't support server-side ordering. `venue_long` preferred over `venue` in the Venue column. Detail panel shows BibTeX inline with clipboard copy button.
+
+**Open items:** `/papers` prefix change is breaking for any external client using the old prefix.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — fix cancelled status persisted as error in venue JSON
 
 **Action:** Reviewed codex's cancel-race and pdf_error fixes — both correct and kept as-is. Fixed the one remaining issue codex flagged as an open item: `_persist_download_stats` was mapping all non-empty error strings to `last_status: "error"`, so cancelled downloads showed as errors in the venue JSON and on the UI status column. Added `"cancelled"` as a recognised value in `_normalize_download_stats` (previously stripped to `""`), added it to `_persist_download_stats` detection logic, and added a `status-cancelled` CSS class (grey) to `venue.html` so it renders distinctly from both success and error.

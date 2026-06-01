@@ -28,11 +28,16 @@ app = FastAPI(
 )
 
 app.include_router(health_router.router)
-app.include_router(papers_router.router, prefix="/papers")
+app.include_router(papers_router.router, prefix="/api/papers")
 app.include_router(venues_router.router, prefix="/api/venues")
 app.include_router(strategies_router.router, prefix="/api/strategies")
 
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/papers", include_in_schema=False)
+async def page_papers():
+    return FileResponse(_STATIC_DIR / "papers.html")
 
 
 @app.get("/addconf", include_in_schema=False)
