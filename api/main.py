@@ -27,9 +27,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(papers_router.router, prefix="/papers")
 app.include_router(health_router.router)
 app.include_router(papers_router.router, prefix="/api/papers")
+app.include_router(papers_router.router, prefix="/papers")  # legacy alias
 app.include_router(venues_router.router, prefix="/api/venues")
 app.include_router(strategies_router.router, prefix="/api/strategies")
 

@@ -6,6 +6,22 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — fix missing Papers nav link in tags.html; clean up router order
+
+**Action:** Reviewed codex's `/papers-ui` backward-compat change. The approach is correct — dual-mounting the router at `/papers` (legacy) and `/api/papers` (canonical) cleanly resolves the URL conflict. Found one miss: `tags.html` was not included in codex's sed pass and was missing the Papers nav link. Fixed. Also reordered router registrations in `main.py` so `health` comes first and the legacy `/papers` alias is clearly annotated, matching the pattern used by other routers.
+
+**Files changed:**
+- `api/static/tags.html` — added `<a href="/papers-ui">Papers</a>` nav link
+- `api/main.py` — reordered routers: health first, then `/api/papers`, then `/papers` legacy alias with comment
+- `VERSION.md` — bumped to `paper-library-v0.1.83`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** No functional change — all routes and prefixes remain the same. Router order change is cosmetic only; FastAPI registration order only matters for path conflicts, which don't exist here.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — restore papers API backward compatibility and isolate UI route
 
 **Action:** Reviewed the most recent Claude change that introduced `papers.html` and moved the papers API to `/api/papers`. Implemented a compatibility fix to preserve existing `/papers` API clients while keeping the new browser page. `api/main.py` now mounts the papers router at both `/papers` (legacy/default) and `/api/papers` (alias), and moves the HTML page route to `GET /papers-ui` to avoid path collisions. Updated all navigation links to point to `/papers-ui`, updated architecture docs with the dual-prefix API note and missing UI routes, and ran syntax checks.
