@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from config.settings import PDF_DIR, STRATEGIES_DIR, TASKS_DIR, VENUES_DIR, settings
 from services import mongo
 from services.models import Paper, VenueRecord
-from services.venues import prefill_venue
+from services.venues import generate_pdf_filename, prefill_venue
 
 router = APIRouter(tags=["venues"])
 
@@ -514,13 +514,8 @@ def _apply_download_pdfs(
         if str(paper.get("pdf_path") or "").strip():
             updated.append(paper)
             continue
-        title_slug = str(paper.get("title_slug") or "").strip()
-        if not title_slug:
-            title_slug = _make_title_slug(str(paper.get("title") or ""))
-        if not title_slug:
-            updated.append(paper)
-            continue
-        dest_path = dest_dir / f"{title_slug}.pdf"
+        filename = _pdf_filename_for_paper(paper, venue_doc, year)
+        dest_path = dest_dir / filename
         try:
             pdf_bytes = _call_pdf_download(download_url, paper)
             dest_path.write_bytes(pdf_bytes)
@@ -576,15 +571,13 @@ async def _apply_download_pdfs_parallel(
             if on_progress:
                 await on_progress(1)
             return
-        title_slug = str(paper.get("title_slug") or "").strip()
-        if not title_slug:
-            title_slug = _make_title_slug(str(paper.get("title") or ""))
-        if not title_slug:
+        filename = await asyncio.to_thread(_pdf_filename_for_paper, paper, venue_doc, year)
+        if not filename:
             results[index] = paper
             if on_progress:
                 await on_progress(1)
             return
-        dest_path = dest_dir / f"{title_slug}.pdf"
+        dest_path = dest_dir / filename
         async with semaphore:
             try:
                 pdf_bytes = await asyncio.to_thread(_call_pdf_download, download_url, paper)
@@ -643,6 +636,20 @@ def _make_title_slug(title: str) -> str:
     slug = re.sub(r"[^\w\s]", "", title.lower())
     slug = re.sub(r"\s+", "_", slug.strip())
     return slug[:60].strip("_")
+
+
+def _pdf_filename_for_paper(paper: dict, venue_doc: dict, year: int) -> str:
+    """Return a PDF filename, trying LLM generation first then falling back to title slug."""
+    title = str(paper.get("title") or "").strip()
+    authors = paper.get("authors") or []
+    venue = str(paper.get("venue") or venue_doc.get("short_name") or "").strip()
+    llm_name = generate_pdf_filename(title, authors, venue, year)
+    if llm_name:
+        return llm_name
+    slug = str(paper.get("title_slug") or "").strip()
+    if not slug:
+        slug = _make_title_slug(title)
+    return f"{slug}.pdf" if slug else f"{_make_title_slug(str(paper.get('doi') or 'paper'))}.pdf"
 
 
 def _apply_generate_doi(

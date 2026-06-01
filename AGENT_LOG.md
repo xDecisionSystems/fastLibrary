@@ -6,6 +6,50 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — improve PDF filename prompt to prefer distinctive technical terms
+
+**Action:** The previous prompt was choosing leading/generic words from titles (e.g. "procedural_terminal_area_airspace_integration" instead of "procedures_uncrewed_aircraft_untowered_airports"). Updated `_PDF_FILENAME_PROMPT` to explicitly instruct the model to pick the most specific and distinctive nouns/adjectives, avoid generic words (concept, approach, system, integration, analysis), and prefer domain-specific technical terms. Added a concrete example using the target paper. Capped simple_title at 3-5 words (was 3-6).
+
+**Files changed:**
+- `services/venues.py` — updated `_PDF_FILENAME_PROMPT` with stronger specificity guidance and example
+- `VERSION.md` — bumped to `paper-library-v0.1.95`
+- `AGENT_LOG.md` — prepended this entry
+
+**Open items:** None.
+
+---
+
+## [2026-06-01] claude-sonnet-4-6 — PDF filename format: underscores within fields, dashes between fields
+
+**Action:** Updated `_PDF_FILENAME_PROMPT` to specify underscores within each field and dashes between fields. Format is now `<simple_title>-<first_author_lastname>-<venue_short>-<year>.pdf`. Example: `evaluation_utm_conops_drone-li-atrd-2025.pdf`. Updated the validation regex from `[a-z0-9\-]*` to `[a-z0-9_\-]*` to accept underscores.
+
+**Files changed:**
+- `services/venues.py` — updated prompt rules and example; regex allows underscores
+- `VERSION.md` — bumped to `paper-library-v0.1.94`
+- `AGENT_LOG.md` — prepended this entry
+
+**Open items:** None.
+
+---
+
+## [2026-06-01] claude-sonnet-4-6 — LLM-generated PDF filenames via Azure OpenAI
+
+**Action:** Added `generate_pdf_filename(title, authors, venue, year)` to `services/venues.py`. Calls Azure OpenAI with a prompt requesting format `<3-6-word-title>-<first-author>-<venue>-<year>.pdf` using lowercase words and hyphens only. Response is validated against `[a-z0-9][a-z0-9\-]*\.pdf` before use. Added `_pdf_filename_for_paper(paper, venue_doc, year)` helper in `venues.py` that calls the LLM and falls back to the slug-based name if credentials are missing or the call fails. Both `_apply_download_pdfs` (sequential) and `_apply_download_pdfs_parallel` (parallel, via `asyncio.to_thread`) now use this helper.
+
+Example output: `evaluation-utm-conops-drone-deliveries-li-atrd-2025.pdf`
+
+**Files changed:**
+- `services/venues.py` — added `_PDF_FILENAME_PROMPT` and `generate_pdf_filename`
+- `api/routes/venues.py` — imported `generate_pdf_filename`; added `_pdf_filename_for_paper`; updated both download functions to use it
+- `VERSION.md` — bumped to `paper-library-v0.1.93`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** LLM call is synchronous (wrapped in `asyncio.to_thread` for the parallel path). Fallback to slug ensures downloads never fail because of an LLM error. Response validation rejects anything that doesn't match the safe filename pattern so a runaway LLM response can't write to an arbitrary path.
+
+**Open items:** Each parallel PDF download now makes an additional LLM call, so 53 ATRD papers = 53 LLM calls. These are cheap (64 tokens each) but worth monitoring if the batch size grows. Could be batched in a pre-pass if latency becomes an issue.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — review latest Claude admin changes; fix task-state reset and docs drift
 
 **Action:** Reviewed the latest Claude changes (`v0.1.90` ingested inference and `v0.1.91` admin wipe flow). Confirmed `_to_paper_model` now marks papers ingested when `pdf_path` is present. Applied follow-up fixes around the new admin reset path: added task-state file cleanup (`tasks/*.json`) to prevent stale download status after a full wipe, hardened admin UI error rendering with HTML escaping, and synced `ARCHITECTURE.md` with newly added endpoints/routes (`GET /papers/{doi:path}/pdf`, `POST /api/admin/delete-all-papers`, `/admin` page route).
