@@ -6,6 +6,21 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — mark paper ingested=True when pdf_path is set
+
+**Action:** ATRD papers were being upserted with `ingested=False` because `_to_paper_model` defaulted to `raw.get("ingested", False)` and the ATRD searcher response never includes an `ingested` field. Papers with a stored PDF are by definition ingested. Fixed by treating a non-empty `pdf_path` as implicit evidence of ingestion: `ingested=bool(raw.get("ingested") or pdf_path)`.
+
+**Files changed:**
+- `api/routes/venues.py` — `_to_paper_model` sets `ingested=True` when `pdf_path` is present
+- `VERSION.md` — bumped to `paper-library-v0.1.90`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Preserves explicit `ingested=True` from any source that sets it directly. Papers without a PDF that explicitly set `ingested=True` (e.g. via the API) are also preserved. Only the missing-field default case is changed.
+
+**Open items:** Already-downloaded ATRD papers in the database have `ingested=False` — they won't be corrected until re-downloaded or manually patched. A one-time MongoDB update would fix existing records: `db.papers.updateMany({pdf_path: {$exists: true, $ne: ""}}, {$set: {ingested: true}})`.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — fix papers detail access regression and secure PDF file serving
 
 **Action:** Reviewed the most recent Claude changes (v0.1.83–v0.1.88) and fixed two regressions. First, the papers detail panel became unreachable after icon-column updates because `openDetail()` was no longer called anywhere in the rendered rows; restored detail access by wiring title click to `openDetail(idx)` and adding hover/cursor affordance. Second, the new `GET /api/papers/{doi}/pdf` endpoint trusted `pdf_path` from metadata and could serve files outside the project PDF directory if a record was poisoned; added path canonicalization and `PDF_DIR` boundary enforcement before serving.

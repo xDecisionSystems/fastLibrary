@@ -785,7 +785,7 @@ def _to_paper_model(raw: dict, venue_doc: dict, year: int) -> Paper | None:
             presentation_url=str(raw.get("presentation_url") or "").strip(),
             tags=tags,
             title_slug=str(raw.get("title_slug") or "").strip(),
-            ingested=bool(raw.get("ingested", False)),
+            ingested=bool(raw.get("ingested") or str(raw.get("pdf_path") or "").strip()),
             doi_synthetic=bool(raw.get("doi_synthetic", False)),
             bibtex=str(raw.get("bibtex") or "").strip(),
         )
