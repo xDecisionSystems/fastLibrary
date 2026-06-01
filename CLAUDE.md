@@ -2,6 +2,11 @@
 
 Repository instructions for Claude-based programming agents.
 
+## Local Downloads
+
+- `downloads/` at the repo root is the designated folder for all locally downloaded files (PDFs, test outputs, API responses, etc.).
+- Its contents are gitignored (`downloads/*`). Always write local test downloads here, never to `/tmp`, `pdf/`, or other locations.
+
 ## Repository Structure
 
 A self-hosted paper metadata and PDF reference store deployed in a single Proxmox LXC. No Docker. All components run natively:

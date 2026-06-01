@@ -130,15 +130,14 @@ function renderTable(){
     const tagBadges=(v.tags||[]).map(t=>`<span class="tag-badge">${esc(t)}</span>`).join(' ');
     const tr=document.createElement('tr');
     tr.innerHTML=`
-      <td><strong>${esc(v.short_name)}</strong></td>
-      <td>${esc(v.long_name)}</td>
+      <td><strong><a href="/venues/${v.slug}" style="color:inherit;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(v.short_name)}</a></strong></td>
+      <td><a href="/venues/${v.slug}" style="color:inherit;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(v.long_name)}</a></td>
       <td>${esc(v.publisher||'—')}</td>
       <td>${esc(v.due_date_month||'—')}</td>
       <td>${v.website_url?`<a href="${esc(v.website_url)}" target="_blank">Website</a>`:'—'}${v.proceedings_url?` · <a href="${esc(v.proceedings_url)}" target="_blank">Proceedings</a>`:''}</td>
       <td><div class="tag-chip-row">${tagBadges||'—'}</div></td>
       <td>${v.open_access?'<span class="oa">✓ Yes</span>':'No'}</td>
       <td class="actions">
-        <a href="/getpapers/${v.slug}" class="btn btn-secondary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">Get Papers</a>
         <a href="/venues/${v.slug}" class="btn btn-primary" style="text-decoration:none;padding:4px 10px;font-size:.78rem">View</a>
         <button class="btn btn-danger" style="padding:4px 10px;font-size:.78rem" onclick="doDelete('${v.slug}')">Delete</button>
       </td>`;

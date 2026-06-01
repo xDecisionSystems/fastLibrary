@@ -22,6 +22,19 @@
       }
     },
     {
+      "id": "download_pdf",
+      "name": "Download PDFs",
+      "type": "download_pdf",
+      "description": "POST each paper record to /download_atrd_paper on the searcher. The endpoint returns the raw PDF bytes. The file is saved to pdf/<venue_slug>/<year>/<title_slug>.pdf and pdf_path on the paper record is updated.",
+      "config": {
+        "endpoint": "/download_atrd_paper",
+        "method": "POST",
+        "base_url": "https://searcher.xds-lab.com/aev/search",
+        "dest_subdir": "{conference.slug}/{year}",
+        "notes": "Response is application/pdf binary. Filename derived from title_slug. Skips papers that already have a pdf_path set."
+      }
+    },
+    {
       "id": "generate_doi",
       "name": "Generate Synthetic DOI",
       "type": "generate_doi",
@@ -30,6 +43,19 @@
         "prefix": "10.0000",
         "namespace": "{conference.slug}",
         "notes": "Generated DOI format: 10.0000/<namespace>.<year>.<title_slug>. doi_synthetic is set to true on all generated DOIs."
+      }
+    },
+    {
+      "id": "build_bibtex",
+      "name": "Build BibTeX Entry",
+      "type": "build_bibtex",
+      "description": "Assemble a BibTeX @inproceedings entry for each paper using all available metadata. booktitle comes from venue_long, address and month from the download_sources entry for the target year.",
+      "config": {
+        "entry_type": "inproceedings",
+        "booktitle_field": "venue_long",
+        "address_source": "download_sources[year].location",
+        "month_source": "download_sources[year].month",
+        "notes": "Omits fields that are empty. doi_synthetic=true is recorded in the note field."
       }
     }
   ]

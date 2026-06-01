@@ -8,19 +8,22 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#222;padding:24px}
   h1{font-size:1.4rem;margin-bottom:4px}
+  h2{font-size:1.1rem;margin-bottom:12px}
   .slug{font-size:.8rem;color:#888;margin-bottom:20px}
-  .card{background:#fff;border-radius:8px;padding:24px;max-width:720px;margin:0 auto;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .card{background:#fff;border-radius:8px;padding:24px;max-width:720px;margin:0 auto 20px auto;box-shadow:0 1px 4px rgba(0,0,0,.1)}
   .row{display:flex;gap:12px;margin-bottom:14px}
   .row label{flex:0 0 160px;padding-top:6px;font-size:.875rem;color:#555}
   .row input,.row select,.row textarea{flex:1;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
   .row textarea{resize:vertical;min-height:60px}
-  .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:.875rem}
+  .btn{padding:7px 12px;border:none;border-radius:4px;cursor:pointer;font-size:.85rem}
   .btn-primary{background:#0066cc;color:#fff}
   .btn-primary:hover{background:#0052a3}
   .btn-secondary{background:#e0e0e0;color:#333}
   .btn-secondary:hover{background:#c8c8c8}
   .btn-danger{background:#cc2222;color:#fff;padding:4px 10px;font-size:.8rem}
   .btn-danger:hover{background:#a01a1a}
+  .btn-search{background:#6c3483;color:#fff}
+  .btn-search:hover{background:#512e6d}
   .section-title{font-size:.95rem;font-weight:600;margin:16px 0 8px}
   table{width:100%;border-collapse:collapse;font-size:.85rem}
   th{text-align:left;padding:4px 8px;background:#f0f0f0;border:1px solid #ddd}
@@ -38,6 +41,36 @@
   nav{margin:0 auto 16px auto;max-width:720px;font-size:.875rem}
   nav a{color:#0066cc;text-decoration:none;margin-right:12px}
   nav a:hover{text-decoration:underline}
+  /* Papers section */
+  .papers-card{background:#fff;border-radius:8px;padding:24px;max-width:720px;margin:0 auto 20px auto;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .controls input{width:120px;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:.875rem}
+  .papers-table{width:100%;border-collapse:collapse;font-size:.875rem}
+  .papers-table th{text-align:left;padding:10px 12px;background:#f0f0f0;border-bottom:1px solid #ddd}
+  .papers-table td{padding:9px 12px;border-bottom:1px solid #eee}
+  .papers-table tr:last-child td{border-bottom:none}
+  .status-ok{color:green;font-weight:600}
+  .status-err{color:#b30000;font-weight:600}
+  #papers-empty{display:none;padding:16px 4px;color:#777;font-size:.9rem}
+  #papers-status{margin-top:12px;font-size:.86rem;min-height:20px}
+  #papers-status.err{color:#b30000}
+  #papers-status.ok{color:green}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.2);width:100%;max-width:860px;max-height:80vh;display:flex;flex-direction:column}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e0e0e0}
+  .modal-header h2{font-size:1rem;font-weight:600;margin:0}
+  .modal-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#555;line-height:1}
+  .modal-body{overflow-y:auto;padding:14px 18px;flex:1}
+  .modal-body table{width:100%;border-collapse:collapse;font-size:.8rem}
+  .modal-body th{text-align:left;padding:8px 10px;background:#f0f0f0;border-bottom:1px solid #ddd;white-space:nowrap}
+  .modal-body td{padding:7px 10px;border-bottom:1px solid #eee;vertical-align:top}
+  .modal-body tr:last-child td{border-bottom:none}
+  .modal-empty{color:#777;font-size:.9rem;padding:8px 0}
+  #modal-status{margin-top:8px;font-size:.85rem;min-height:18px}
+  #modal-status.err{color:#b30000}
 </style>
 </head>
 <body>
@@ -50,6 +83,7 @@
   <a href="/tags">Tags</a>
   <a href="/strategies">Strategies</a>
 </nav>
+
 <div class="card">
   <h1 id="page-title">Venue</h1>
   <div class="slug" id="page-slug"></div>
@@ -58,7 +92,7 @@
   <div class="row"><label>Long name</label><input id="f-long_name" type="text"></div>
   <div class="row">
     <label>Type</label>
-    <select id="f-type">
+    <select id="f-type" onchange="onTypeChange()">
       <option value="">— select —</option>
       <option value="conference">Conference</option>
       <option value="journal">Journal</option>
@@ -107,7 +141,7 @@
   <div class="section-title">Per-Year Proceedings</div>
   <p style="font-size:.8rem;color:#888;margin-bottom:8px">Use when individual years have separate URLs. Leave empty if the Proceedings URL above covers all years.</p>
   <table id="sources-table">
-    <thead><tr><th>Year</th><th>URL</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Year</th><th>URL</th><th>Location</th><th>Month</th><th>Notes</th><th></th></tr></thead>
     <tbody id="sources-body"></tbody>
   </table>
   <button class="btn btn-secondary" style="margin-top:8px" onclick="addSourceRow()">+ Add Year</button>
@@ -115,22 +149,64 @@
   <div style="margin-top:20px;display:flex;gap:10px">
     <button class="btn btn-primary" onclick="doSave()">Save Changes</button>
     <button class="btn btn-secondary" onclick="loadVenue()">Revert</button>
-    <a id="getpapers-link" href="#" class="btn btn-secondary" style="text-decoration:none;display:none">Get Papers</a>
   </div>
   <div id="status"></div>
 </div>
 
+<!-- Papers section — conferences only -->
+<div class="papers-card" id="papers-section" style="display:none">
+  <h2>Papers</h2>
+  <div class="controls">
+    <input id="year-input" type="number" min="1900" step="1" placeholder="Year (e.g. 2025)">
+    <button class="btn btn-secondary" onclick="addYear()">Add Year</button>
+    <button class="btn btn-secondary" onclick="loadPapers()">Refresh</button>
+  </div>
+  <table class="papers-table">
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Found</th>
+        <th>Downloaded</th>
+        <th>Last Attempted</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="papers-tbody"></tbody>
+  </table>
+  <div id="papers-empty">No years yet. Add a year above.</div>
+  <div id="papers-status"></div>
+</div>
+
+<div id="search-modal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Search Results</h2>
+      <button class="modal-close" onclick="closeSearchModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-status"></div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 const slug=location.pathname.split('/').filter(Boolean).pop();
+let paperRows=[];
 
-function parseTags(str){
-  return str.split(';').map(t=>t.trim()).filter(Boolean);
-}
+// ── utilities ────────────────────────────────────────────────────────────────
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+function set(id,val){document.getElementById(id).value=val==null?'':val;}
+function setStatus(msg,cls){const el=document.getElementById('status');el.textContent=msg;el.className=cls||'';}
+function setPapersStatus(msg,cls){const el=document.getElementById('papers-status');el.textContent=msg;el.className=cls||'';}
+function formatDate(v){if(!v)return '—';const dt=new Date(v);return Number.isNaN(dt.getTime())?v:dt.toLocaleString();}
 
-function serializeTags(arr){
-  return arr.join('; ');
-}
+function parseTags(str){return str.split(';').map(t=>t.trim()).filter(Boolean);}
+function serializeTags(arr){return arr.join('; ');}
+function getSelectedTags(){return parseTags(document.getElementById('f-tags').value);}
 
+// ── tag suggestions ───────────────────────────────────────────────────────────
 async function loadTagSuggestions(selected=[]){
   document.getElementById('f-tags').value=serializeTags(selected);
   try{
@@ -145,9 +221,7 @@ function renderTagSuggestions(tags){
   bar.innerHTML='';
   tags.forEach(t=>{
     const chip=document.createElement('button');
-    chip.type='button';
-    chip.className='tag-sugg';
-    chip.textContent=t;
+    chip.type='button';chip.className='tag-sugg';chip.textContent=t;
     chip.onclick=()=>toggleSuggestion(t,chip);
     updateChipState(chip,t);
     bar.appendChild(chip);
@@ -155,48 +229,49 @@ function renderTagSuggestions(tags){
 }
 
 function updateChipState(chip,tag){
-  const current=parseTags(document.getElementById('f-tags').value);
-  chip.className='tag-sugg'+(current.includes(tag)?' active':'');
+  chip.className='tag-sugg'+(parseTags(document.getElementById('f-tags').value).includes(tag)?' active':'');
 }
 
 function toggleSuggestion(tag,chip){
   const input=document.getElementById('f-tags');
-  let current=parseTags(input.value);
-  if(current.includes(tag)){current=current.filter(t=>t!==tag);}
-  else{current.push(tag);}
-  input.value=serializeTags(current);
+  let cur=parseTags(input.value);
+  cur=cur.includes(tag)?cur.filter(t=>t!==tag):[...cur,tag];
+  input.value=serializeTags(cur);
   document.querySelectorAll('.tag-sugg').forEach(c=>updateChipState(c,c.textContent));
 }
 
-function getSelectedTags(){
-  return parseTags(document.getElementById('f-tags').value);
-}
-
-document.getElementById('page-slug').textContent=slug;
-
-async function loadStrategySelector(selected='_default'){
+// ── strategy selector ─────────────────────────────────────────────────────────
+async function loadStrategySelector(selected=''){
   const sel=document.getElementById('f-strategy');
   try{
     const r=await fetch('/api/strategies');
     const strategies=await r.json();
-    sel.innerHTML='';
+    sel.innerHTML='<option value="">— none —</option>';
     strategies.forEach(s=>{
       const opt=document.createElement('option');
-      opt.value=s.slug;
-      opt.textContent=s.name||s.slug;
+      opt.value=s.slug;opt.textContent=s.name||s.slug;
       if(s.slug===selected)opt.selected=true;
       sel.appendChild(opt);
     });
-  }catch(e){
-    sel.innerHTML=`<option value="_default">_default</option>`;
-  }
+  }catch(e){sel.innerHTML='<option value="">— none —</option>';}
   updateStrategyLink();
 }
 
 function updateStrategyLink(){
   const sel=document.getElementById('f-strategy');
   const link=document.getElementById('strategy-link');
-  if(sel.value)link.href='/strategies/'+encodeURIComponent(sel.value);
+  link.href=sel.value?'/strategies/'+encodeURIComponent(sel.value):'#';
+  link.style.visibility=sel.value?'visible':'hidden';
+}
+
+// ── venue form ────────────────────────────────────────────────────────────────
+document.getElementById('page-slug').textContent=slug;
+
+function onTypeChange(){
+  const isConf=document.getElementById('f-type').value==='conference';
+  document.getElementById('due-date-row').style.display=isConf?'':'none';
+  document.getElementById('strategy-row').style.display=isConf?'':'none';
+  document.getElementById('papers-section').style.display=isConf?'':'none';
 }
 
 async function loadVenue(){
@@ -221,36 +296,30 @@ function populate(d){
   set('f-proceedings_url',d.proceedings_url||'');
   document.getElementById('f-open_access').checked=!!d.open_access;
   loadTagSuggestions(d.tags||[]);
-  loadStrategySelector(d.strategy||'_default');
+  loadStrategySelector(d.strategy||'');
   set('f-notes',d.notes||'');
   document.getElementById('sources-body').innerHTML='';
-  (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.notes));
-
-  const isConf=d.type==='conference';
-  document.getElementById('due-date-row').style.display=isConf?'':'none';
-  document.getElementById('strategy-row').style.display=isConf?'':'none';
-  const papersLink=document.getElementById('getpapers-link');
-  papersLink.style.display=isConf?'':'none';
-  papersLink.href='/getpapers/'+encodeURIComponent(slug);
+  (d.download_sources||[]).forEach(s=>addSourceRow(s.name,s.url,s.location,s.month,s.notes));
+  onTypeChange();
+  if(d.type==='conference') loadPapers();
 }
 
-function set(id,val){document.getElementById(id).value=val==null?'':val;}
-
-function addSourceRow(name='',url='',notes=''){
+function addSourceRow(name='',url='',location='',month='',notes=''){
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td><input type="text" value="${esc(name)}" placeholder="e.g. 2024"></td>
+  tr.innerHTML=`
+    <td><input type="text" value="${esc(name)}" placeholder="e.g. 2024"></td>
     <td><input type="url" value="${esc(url)}" placeholder="https://"></td>
+    <td><input type="text" value="${esc(location)}" placeholder="City, Country"></td>
+    <td><input type="text" value="${esc(month)}" placeholder="June"></td>
     <td><input type="text" value="${esc(notes)}"></td>
     <td><button class="btn btn-danger" onclick="this.closest('tr').remove()">✕</button></td>`;
   document.getElementById('sources-body').appendChild(tr);
 }
 
-function esc(s){return String(s).replace(/"/g,'&quot;');}
-
 function getForm(){
   const sources=[...document.querySelectorAll('#sources-body tr')].map(tr=>{
     const inputs=tr.querySelectorAll('input');
-    return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),notes:inputs[2].value.trim()};
+    return{name:inputs[0].value.trim(),url:inputs[1].value.trim(),location:inputs[2].value.trim(),month:inputs[3].value.trim(),notes:inputs[4].value.trim()};
   }).filter(s=>s.name||s.url);
   return{
     short_name:document.getElementById('f-short_name').value.trim(),
@@ -285,10 +354,111 @@ async function doSave(){
   }catch(e){setStatus('Request failed: '+e.message,'err');}
 }
 
-function setStatus(msg,cls){
-  const el=document.getElementById('status');
-  el.textContent=msg;
-  el.className=cls||'';
+// ── papers section ────────────────────────────────────────────────────────────
+function renderPapers(){
+  const tbody=document.getElementById('papers-tbody');
+  tbody.innerHTML='';
+  paperRows.sort((a,b)=>b.year-a.year);
+  document.getElementById('papers-empty').style.display=paperRows.length?'none':'';
+  paperRows.forEach((r)=>{
+    const tr=document.createElement('tr');
+    const statusClass=r.last_status==='success'?'status-ok':(r.last_status==='error'?'status-err':'');
+    const statusLabel=r.last_status?r.last_status.toUpperCase():'—';
+    const foundLabel=Number.isFinite(r.found_papers)?String(r.found_papers):'—';
+    const errorSuffix=r.last_error?`<div style="font-size:.74rem;color:#777">${esc(r.last_error)}</div>`:'';
+    tr.id=`row-${r.year}`;
+    tr.innerHTML=`
+      <td class="mono">${r.year}</td>
+      <td id="found-${r.year}">${foundLabel}</td>
+      <td>${Number.isFinite(r.downloaded_papers)?r.downloaded_papers:0}</td>
+      <td>${esc(formatDate(r.last_attempted_at))}</td>
+      <td><span class="${statusClass}">${statusLabel}</span>${errorSuffix}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-search" onclick="searchYear(${r.year})">Search</button>
+        <button class="btn btn-primary" onclick="downloadYear(${r.year})">Download</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function addYear(){
+  const input=document.getElementById('year-input');
+  const numericYear=Number(input.value.trim());
+  if(!Number.isInteger(numericYear)||numericYear<1900){setPapersStatus('Please enter a valid year (1900+).','err');return;}
+  if(paperRows.some(r=>r.year===numericYear)){setPapersStatus(`Year ${numericYear} already exists.`,'err');return;}
+  paperRows.push({year:numericYear,found_papers:null,downloaded_papers:0,last_attempted_at:'',last_status:'',last_error:''});
+  input.value='';
+  setPapersStatus('','');
+  renderPapers();
+}
+
+async function loadPapers(){
+  setPapersStatus('Loading…','');
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads`);
+    const d=await r.json();
+    if(!r.ok){setPapersStatus(d.detail||'Failed to load.','err');return;}
+    paperRows=(d.years||[]).map(row=>({
+      year:Number(row.year),
+      found_papers:row.found_papers==null?null:Number(row.found_papers),
+      downloaded_papers:Number(row.downloaded_papers||0),
+      last_attempted_at:row.last_attempted_at||'',
+      last_status:row.last_status||'',
+      last_error:row.last_error||'',
+    })).filter(row=>Number.isInteger(row.year));
+    setPapersStatus('','');
+    renderPapers();
+  }catch(e){setPapersStatus('Failed to load: '+e.message,'err');}
+}
+
+async function downloadYear(year){
+  setPapersStatus(`Downloading papers for ${year}…`,'');
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-downloads/${year}`,{method:'POST'});
+    const d=await r.json();
+    if(!r.ok){setPapersStatus(d.detail||'Download failed.','err');await loadPapers();return;}
+    setPapersStatus(`Download complete for ${year}: ${d.downloaded_papers||0} papers.`,'ok');
+    await loadPapers();
+  }catch(e){setPapersStatus('Request failed: '+e.message,'err');}
+}
+
+// ── search modal ──────────────────────────────────────────────────────────────
+function closeSearchModal(){document.getElementById('search-modal').classList.remove('open');}
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeSearchModal();});
+document.getElementById('search-modal').addEventListener('click',(e)=>{if(e.target===e.currentTarget)closeSearchModal();});
+
+async function searchYear(year){
+  document.getElementById('modal-title').textContent=`Search Results — ${year}`;
+  document.getElementById('modal-content').innerHTML='';
+  document.getElementById('modal-status').textContent='Searching…';
+  document.getElementById('modal-status').className='';
+  document.getElementById('search-modal').classList.add('open');
+  try{
+    const r=await fetch(`/api/venues/${encodeURIComponent(slug)}/paper-search/${year}`,{method:'POST'});
+    const d=await r.json();
+    if(!r.ok){document.getElementById('modal-status').textContent=d.detail||'Search failed.';document.getElementById('modal-status').className='err';return;}
+    const papers=d.papers||[];
+    const total=Number.isFinite(Number(d.total))?Number(d.total):papers.length;
+    document.getElementById('modal-status').textContent=`${total} paper(s) found. Results cached locally.`;
+    const foundCell=document.getElementById(`found-${year}`);
+    if(foundCell)foundCell.textContent=String(total);
+    const row=paperRows.find(r=>r.year===year);
+    if(row)row.found_papers=total;
+    if(!papers.length){document.getElementById('modal-content').innerHTML='<p class="modal-empty">No papers returned by the searcher.</p>';return;}
+    const tableRows=papers.map((p)=>{
+      const doi=esc(p.doi||p.DOI||'');
+      const title=esc(p.title||'Untitled');
+      const authors=Array.isArray(p.authors)?esc(p.authors.slice(0,3).join(', ')+(p.authors.length>3?' et al.':'')):esc(p.authors||'');
+      const yr=esc(p.publication_year||p.year||'');
+      const src=esc(p.source||'');
+      return `<tr><td class="mono" style="white-space:nowrap">${doi||'—'}</td><td>${title}</td><td>${authors}</td><td>${yr}</td><td>${src}</td></tr>`;
+    }).join('');
+    document.getElementById('modal-content').innerHTML=`
+      <table>
+        <thead><tr><th>DOI</th><th>Title</th><th>Authors</th><th>Year</th><th>Source</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>`;
+  }catch(e){document.getElementById('modal-status').textContent='Request failed: '+e.message;document.getElementById('modal-status').className='err';}
 }
 
 loadVenue();

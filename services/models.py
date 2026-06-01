@@ -14,12 +14,16 @@ class Paper(BaseModel):
     pdf_link: str = ""
     pdf_path: str = ""
     venue: str = ""
+    venue_long: str = ""
     snippet: str = ""
     is_abstract: bool = False
+    is_best_paper: bool = False
+    presentation_url: str = ""
     tags: list[str] = Field(default_factory=list)
     title_slug: str = ""
     ingested: bool = False
     doi_synthetic: bool = False
+    bibtex: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -41,12 +45,16 @@ class PaperUpdate(BaseModel):
     pdf_link: Optional[str] = None
     pdf_path: Optional[str] = None
     venue: Optional[str] = None
+    venue_long: Optional[str] = None
     snippet: Optional[str] = None
     is_abstract: Optional[bool] = None
+    is_best_paper: Optional[bool] = None
+    presentation_url: Optional[str] = None
     tags: Optional[list[str]] = None
     title_slug: Optional[str] = None
     ingested: Optional[bool] = None
     doi_synthetic: Optional[bool] = None
+    bibtex: Optional[str] = None
 
 
 class UpsertRequest(BaseModel):
@@ -64,6 +72,8 @@ class DownloadSource(BaseModel):
     name: str = ""
     url: str = ""
     notes: str = ""
+    location: str = ""
+    month: str = ""
 
 
 _MONTH_NAMES = {

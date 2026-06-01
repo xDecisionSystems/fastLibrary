@@ -123,8 +123,8 @@ function renderTable(){
     const tagBadges=(v.tags||[]).map(t=>`<span class="tag-badge">${esc(t)}</span>`).join(' ');
     const tr=document.createElement('tr');
     tr.innerHTML=`
-      <td><strong>${esc(v.short_name)}</strong></td>
-      <td>${esc(v.long_name)}</td>
+      <td><strong><a href="/venues/${v.slug}" style="color:inherit;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(v.short_name)}</a></strong></td>
+      <td><a href="/venues/${v.slug}" style="color:inherit;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(v.long_name)}</a></td>
       <td>${esc(v.publisher||'—')}</td>
       <td>${v.website_url?`<a href="${esc(v.website_url)}" target="_blank">Website</a>`:'—'}</td>
       <td><div class="tag-chip-row">${tagBadges||'—'}</div></td>

@@ -71,8 +71,8 @@ async def page_venue(slug: str):
 
 
 @app.get("/getpapers/{slug}", include_in_schema=False)
-async def page_getpapers(slug: str):
-    return FileResponse(_STATIC_DIR / "getpapers.html")
+async def page_getpapers_redirect(slug: str):
+    return RedirectResponse(url=f"/venues/{slug}", status_code=301)
 
 
 @app.get("/strategies", include_in_schema=False)

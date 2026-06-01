@@ -9,7 +9,7 @@ from urllib import request as urllib_request
 
 from fastapi import APIRouter, HTTPException, Query
 
-from config.settings import STRATEGIES_DIR, VENUES_DIR, settings
+from config.settings import PDF_DIR, STRATEGIES_DIR, VENUES_DIR, settings
 from services import mongo
 from services.models import Paper, VenueRecord
 from services.venues import prefill_venue
@@ -236,9 +236,57 @@ def _resolve_strategy(slug: str) -> dict:
 
 
 def _default_strategy_for_slug(slug: str) -> str:
-    """Return slug if a matching strategy file exists, otherwise empty string."""
-    if slug and _strategy_path(slug).exists():
-        return slug
+    """Choose a default strategy slug for a venue slug, or empty string if none match."""
+    normalized_slug = _slug(slug)
+    if not normalized_slug:
+        return ""
+    if _strategy_path(normalized_slug).exists():
+        return normalized_slug
+
+    strategy_slugs = sorted(
+        p.stem for p in STRATEGIES_DIR.glob("*.json") if p.stem and not p.stem.startswith("_")
+    )
+    if not strategy_slugs:
+        return ""
+
+    # Explicit aliases can be declared in strategy docs via "aliases": ["..."].
+    alias_matches = []
+    for strategy_slug in strategy_slugs:
+        doc = _load_strategy_doc(strategy_slug)
+        aliases = doc.get("aliases", [])
+        if not isinstance(aliases, list):
+            continue
+        normalized_aliases = {
+            _slug(alias) for alias in aliases if isinstance(alias, str) and _slug(alias)
+        }
+        if normalized_slug in normalized_aliases:
+            alias_matches.append(strategy_slug)
+    if len(alias_matches) == 1:
+        return alias_matches[0]
+
+    # Prefix match handles common patterns like "atrd_symposium" -> "atrd".
+    prefix_matches = [
+        strategy_slug
+        for strategy_slug in strategy_slugs
+        if normalized_slug.startswith(f"{strategy_slug}_")
+        or strategy_slug.startswith(f"{normalized_slug}_")
+    ]
+    if len(prefix_matches) == 1:
+        return prefix_matches[0]
+
+    venue_tokens = {token for token in normalized_slug.split("_") if token}
+    scored_subset_matches: list[tuple[int, str]] = []
+    for strategy_slug in strategy_slugs:
+        strategy_tokens = {token for token in strategy_slug.split("_") if token}
+        if strategy_tokens and strategy_tokens.issubset(venue_tokens):
+            scored_subset_matches.append((len(strategy_tokens), strategy_slug))
+    if scored_subset_matches:
+        scored_subset_matches.sort(key=lambda item: (-item[0], item[1]))
+        best_score = scored_subset_matches[0][0]
+        best_matches = [slug_value for score, slug_value in scored_subset_matches if score == best_score]
+        if len(best_matches) == 1:
+            return best_matches[0]
+
     return ""
 
 
@@ -422,7 +470,72 @@ def _call_searcher(request_spec: dict) -> dict | list:
     raise RuntimeError("searcher API returned unsupported JSON payload")
 
 
-async def _search_papers_for_venue(venue_doc: dict, year: int) -> tuple[dict | list, list[dict]]:
+def _call_pdf_download(url: str, paper: dict) -> bytes:
+    body = json.dumps(paper).encode("utf-8")
+    req = urllib_request.Request(
+        url=url,
+        data=body,
+        headers={"Content-Type": "application/json", "Accept": "application/pdf"},
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=180) as resp:
+            return resp.read()
+    except urllib_error.HTTPError as exc:
+        err_body = exc.read().decode("utf-8", errors="ignore").strip()
+        raise RuntimeError(f"PDF download returned {exc.code}: {err_body or exc.reason}") from exc
+    except urllib_error.URLError as exc:
+        raise RuntimeError(f"PDF download request failed: {exc.reason}") from exc
+
+
+def _apply_download_pdfs(
+    candidates: list[dict], step_config: dict, venue_doc: dict, year: int
+) -> list[dict]:
+    base_url = str(step_config.get("base_url") or settings.searcher_api_base_url).strip()
+    endpoint = str(step_config.get("endpoint") or "").strip()
+    download_url = _build_searcher_url(base_url, endpoint)
+    if not download_url:
+        raise RuntimeError("download_pdf step has no resolvable URL")
+
+    payload = _build_searcher_payload(venue_doc, year)
+    raw_subdir = str(step_config.get("dest_subdir") or "{conference.slug}/{year}").strip()
+    try:
+        subdir = str(_resolve_template(raw_subdir, payload, venue_doc, year))
+    except Exception:
+        subdir = f"{venue_doc.get('slug', 'unknown')}/{year}"
+
+    dest_dir = PDF_DIR / subdir
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    updated: list[dict] = []
+    for paper in candidates:
+        if not isinstance(paper, dict):
+            continue
+        if str(paper.get("pdf_path") or "").strip():
+            updated.append(paper)
+            continue
+        title_slug = str(paper.get("title_slug") or "").strip()
+        if not title_slug:
+            title_slug = _make_title_slug(str(paper.get("title") or ""))
+        if not title_slug:
+            updated.append(paper)
+            continue
+        dest_path = dest_dir / f"{title_slug}.pdf"
+        try:
+            pdf_bytes = _call_pdf_download(download_url, paper)
+            dest_path.write_bytes(pdf_bytes)
+            paper = dict(paper)
+            paper["pdf_path"] = str(dest_path)
+        except Exception as exc:
+            paper = dict(paper)
+            paper["pdf_error"] = str(exc)
+        updated.append(paper)
+    return updated
+
+
+async def _search_papers_for_venue(
+    venue_doc: dict, year: int, download_pdfs: bool = False
+) -> tuple[dict | list, list[dict]]:
     request_spec = _build_searcher_request(venue_doc, year)
     searcher_response = await asyncio.to_thread(_call_searcher, request_spec)
     candidates = _extract_response_papers(searcher_response)
@@ -432,9 +545,15 @@ async def _search_papers_for_venue(venue_doc: dict, year: int) -> tuple[dict | l
     for step in resolved.get("steps", []):
         if not isinstance(step, dict):
             continue
+        config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
         if step.get("type") == "generate_doi":
-            config = step.get("config", {}) if isinstance(step.get("config"), dict) else {}
             candidates = _apply_generate_doi(candidates, config, venue_doc, year)
+        elif step.get("type") == "download_pdf" and download_pdfs:
+            candidates = await asyncio.to_thread(
+                _apply_download_pdfs, candidates, config, venue_doc, year
+            )
+        elif step.get("type") == "build_bibtex":
+            candidates = _apply_build_bibtex(candidates, config, venue_doc, year)
 
     return searcher_response, candidates
 
@@ -493,6 +612,73 @@ def _coerce_authors(value: object) -> list[str]:
     return [str(author).strip() for author in value if str(author).strip()]
 
 
+def _build_bibtex_entry(paper: dict, address: str, month: str) -> str:
+    doi = str(paper.get("doi") or "").strip()
+    title = str(paper.get("title") or "").strip()
+    authors = [str(author).strip() for author in (paper.get("authors") or []) if str(author).strip()]
+    year = str(paper.get("publication_year") or "").strip()
+    booktitle = str(paper.get("venue_long") or paper.get("venue") or "").strip()
+    url = str(paper.get("url") or paper.get("pdf_link") or "").strip()
+    doi_synthetic = bool(paper.get("doi_synthetic", False))
+
+    author_str = " and ".join(authors)
+    first_author_last_name = "unknown"
+    if authors:
+        name_parts = authors[0].split()
+        if name_parts:
+            first_author_last_name = name_parts[-1]
+    cite_key = re.sub(r"[^\w]", "", first_author_last_name.lower()) or "unknown"
+    if year:
+        cite_key += year
+
+    fields: list[tuple[str, str]] = []
+    if author_str:
+        fields.append(("author", author_str))
+    if title:
+        fields.append(("title", f"{{{title}}}"))
+    if booktitle:
+        fields.append(("booktitle", f"{{{booktitle}}}"))
+    if year:
+        fields.append(("year", year))
+    if month:
+        fields.append(("month", month))
+    if address:
+        fields.append(("address", address))
+    if doi:
+        fields.append(("doi", doi))
+    if url:
+        fields.append(("url", url))
+    if doi_synthetic:
+        fields.append(("note", "DOI is synthetic (not registered with doi.org)"))
+
+    body = ",\n".join(f"  {k} = {{{v}}}" if not v.startswith("{") else f"  {k} = {v}"
+                      for k, v in fields)
+    return f"@inproceedings{{{cite_key},\n{body}\n}}"
+
+
+def _apply_build_bibtex(
+    candidates: list[dict], step_config: dict, venue_doc: dict, year: int
+) -> list[dict]:
+    source = _find_download_source_for_year(venue_doc, year)
+    address = str(source.get("location") or "").strip()
+    month = str(source.get("month") or "").strip()
+
+    result = []
+    for paper in candidates:
+        if not isinstance(paper, dict):
+            continue
+        paper = dict(paper)
+        if not str(paper.get("venue_long") or "").strip():
+            paper["venue_long"] = str(venue_doc.get("long_name") or "").strip()
+        if not str(paper.get("venue") or "").strip():
+            paper["venue"] = str(venue_doc.get("short_name") or "").strip()
+        if not paper.get("publication_year"):
+            paper["publication_year"] = year
+        paper["bibtex"] = _build_bibtex_entry(paper, address, month)
+        result.append(paper)
+    return result
+
+
 def _coerce_tags(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -523,12 +709,16 @@ def _to_paper_model(raw: dict, venue_doc: dict, year: int) -> Paper | None:
             pdf_link=pdf_link,
             pdf_path=str(raw.get("pdf_path") or "").strip(),
             venue=str(raw.get("venue") or venue_doc.get("short_name") or "").strip(),
+            venue_long=str(raw.get("venue_long") or venue_doc.get("long_name") or "").strip(),
             snippet=str(raw.get("snippet") or "").strip(),
             is_abstract=bool(raw.get("is_abstract", False)),
+            is_best_paper=bool(raw.get("is_best_paper", False)),
+            presentation_url=str(raw.get("presentation_url") or "").strip(),
             tags=tags,
             title_slug=str(raw.get("title_slug") or "").strip(),
             ingested=bool(raw.get("ingested", False)),
             doi_synthetic=bool(raw.get("doi_synthetic", False)),
+            bibtex=str(raw.get("bibtex") or "").strip(),
         )
     except Exception:
         return None
@@ -765,7 +955,7 @@ async def download_papers_for_conference_year(slug: str, year: int):
     year_key = str(parsed_year)
 
     try:
-        searcher_response, paper_candidates = await _search_papers_for_venue(doc, parsed_year)
+        searcher_response, paper_candidates = await _search_papers_for_venue(doc, parsed_year, download_pdfs=True)
         papers: list[Paper] = []
         for candidate in paper_candidates:
             paper = _to_paper_model(candidate, doc, parsed_year)

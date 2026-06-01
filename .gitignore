@@ -22,5 +22,5 @@ pdf/
 venues/*.json
 
 # Downloads folder (track folder, ignore contents)
-downloads/*
+downloads/**
 !downloads/.gitkeep
