@@ -795,6 +795,27 @@ async def _run_download_task(slug: str, year: int) -> None:
     for i, candidate in enumerate(candidates):
         task = _read_task(slug, year)
         if task.get("status") == "cancelled":
+            _write_task(
+                slug,
+                year,
+                {
+                    "status": "cancelled",
+                    "total": total,
+                    "downloaded": downloaded,
+                    "errors": errors,
+                    "started_at": attempted_at,
+                    "finished_at": task.get("finished_at") or _utc_now_iso(),
+                },
+            )
+            _persist_download_stats(
+                slug,
+                year,
+                doc,
+                path,
+                attempted_at,
+                downloaded,
+                "cancelled by user",
+            )
             return
 
         paper_list = [candidate]
@@ -830,6 +851,15 @@ async def _run_download_task(slug: str, year: int) -> None:
                 if stype != "bulk_upsert":
                     errors.append(str(exc))
 
+        # download_pdf failures are captured on paper dicts as pdf_error; surface them in task status.
+        for raw in paper_list:
+            if not isinstance(raw, dict):
+                continue
+            pdf_error = str(raw.get("pdf_error") or "").strip()
+            if pdf_error:
+                paper_ref = str(raw.get("doi") or raw.get("title_slug") or raw.get("title") or "unknown")
+                errors.append(f"{paper_ref}: {pdf_error}")
+
         if upsert_after_steps:
             for raw in paper_list:
                 paper = _to_paper_model(raw, doc, year)
@@ -840,6 +870,31 @@ async def _run_download_task(slug: str, year: int) -> None:
                     downloaded += 1
                 except Exception as exc:
                     errors.append(f"{raw.get('doi', '?')}: {exc}")
+
+        task = _read_task(slug, year)
+        if task.get("status") == "cancelled":
+            _write_task(
+                slug,
+                year,
+                {
+                    "status": "cancelled",
+                    "total": total,
+                    "downloaded": downloaded,
+                    "errors": errors,
+                    "started_at": attempted_at,
+                    "finished_at": task.get("finished_at") or _utc_now_iso(),
+                },
+            )
+            _persist_download_stats(
+                slug,
+                year,
+                doc,
+                path,
+                attempted_at,
+                downloaded,
+                "cancelled by user",
+            )
+            return
 
         _write_task(slug, year, {
             "status": "running", "total": total, "downloaded": downloaded,

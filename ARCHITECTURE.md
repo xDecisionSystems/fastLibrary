@@ -153,6 +153,15 @@ All configuration is loaded from `.env` at import time via `python-dotenv`.
 
 Missing `MONGO_URI` or `MONGO_DB` raises `RuntimeError` at startup (fail fast).
 
+Runtime path constants (code-level, not env-driven):
+
+| Constant | Default | Purpose |
+|----------|---------|---------|
+| `PDF_DIR` | `pdf/` | Downloaded PDF storage root |
+| `VENUES_DIR` | `venues/` | Venue JSON registry |
+| `STRATEGIES_DIR` | `strategies/` | Strategy JSON store |
+| `TASKS_DIR` | `tasks/` | Background download task status files |
+
 ## 8. Deployment Topology
 
 ```
@@ -212,6 +221,9 @@ Venue API endpoints:
 | GET    | /api/venues/{slug}/paper-downloads | —         | Conference year rows with `found_papers` (nullable), `downloaded_papers`, `last_attempted_at`, and status |
 | GET    | /api/venues/{slug}/paper-search/{year} | —     | Strategy-driven preview search (no writes) |
 | POST   | /api/venues/{slug}/paper-search/{year} | —    | Strategy-driven search plus cache upsert for Found counts |
+| POST   | /api/venues/{slug}/paper-downloads/{year}/start | — | Starts async background download task and returns immediately |
+| GET    | /api/venues/{slug}/paper-downloads/{year}/status | — | Returns async task status/progress (`idle`, `running`, `success`, `partial`, `error`, `cancelled`) |
+| POST   | /api/venues/{slug}/paper-downloads/{year}/cancel | — | Requests cooperative cancel for running async download task |
 | POST   | /api/venues/{slug}/paper-downloads/{year} | —    | Triggers external searcher fetch + paper bulk-upsert + per-year download status update |
 | GET    | /api/venues/tags      | —                    | Tag list (`string[]`) |
 | POST   | /api/venues/tags      | `{"tag": "<name>"}`  | Updated tag list (`string[]`) |
@@ -222,6 +234,7 @@ Tags are normalized/tracked in `venues/_tags.json`. Tags cannot be empty, cannot
 `download_sources` rows may include optional `location` and `month` fields for year-specific proceedings metadata (used by BibTeX generation).
 Conference download attempt metadata is stored in each venue JSON under `paper_downloads` keyed by year, including `downloaded_papers`, `last_attempted_at`, `last_status`, and `last_error`.
 Conference search cache metadata is stored in MongoDB collection `paper_search_cache` keyed by `(slug, year)` and surfaced as `found_papers`; `null` means no cached search has been run for that year.
+Async download task state is stored as JSON files under `tasks/` (`<slug>-<year>.json`) so progress can be polled and resumed across page navigation.
 
 Strategy API endpoints:
 

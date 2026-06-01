@@ -6,6 +6,23 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] codex-gpt-5 — fix async download cancel race and surface PDF step errors
+
+**Action:** Reviewed the latest Claude async-download changes and fixed two regressions in task execution. First, cancel requests could be overwritten by the worker loop (`running` status rewrites), making cancel effectively unreliable mid-paper; added cancellation checks both before and after per-paper step execution, preserving cancelled state and persisting partial stats. Second, `download_pdf` failures were stored only as transient `pdf_error` fields and never surfaced in task/error status; now these per-paper failures are appended to task errors so final status can correctly become `partial/error` instead of silent `success`. Also updated `ARCHITECTURE.md` to document async `/start|/status|/cancel` endpoints and `tasks/` task-state files.
+
+**Files changed:**
+- `api/routes/venues.py` — robust cancel handling in `_run_download_task`; per-paper `pdf_error` propagation into task errors
+- `ARCHITECTURE.md` — documented async download endpoints, task status model, and `TASKS_DIR` runtime path constant
+- `VERSION.md` — bumped to `paper-library-v0.1.79`
+- `AGENT_LOG.md` — prepended this entry and archived older entries
+- `history/2026-05.md` — received archived AGENT_LOG entries beyond 10 most recent
+
+**Decisions:** Cancellation is treated as a first-class terminal state that preserves already-completed progress (`downloaded` count) and writes `paper_downloads` with `last_status=error` and `last_error="cancelled by user"` to keep behavior compatible with existing status schema.
+
+**Open items:** Consider adding a distinct `cancelled` value to persisted `paper_downloads.last_status` in a future schema update to avoid overloading `error` for user-initiated stops.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — fix step order in atrd strategy and wire upsert_papers step
 
 **Action:** Fixed two issues in the ATRD download strategy. (1) Step order was wrong — `download_pdf` ran before `generate_doi`, so papers had no DOI when the PDF filename was derived and when they were upserted. Corrected order: `fetch_papers` → `generate_doi` → `download_pdf` → `build_bibtex` → `upsert_papers`. (2) The `upsert_papers` step inherited from `_default` was never executed — the upsert was hardcoded outside the step loop. Added `bulk_upsert` step type handling in `_run_download_task`: when the strategy declares `upsert_papers`, the loop executes it as part of the step chain and sets `upsert_after_steps=False` to suppress the fallback hardcoded upsert. Strategies without a `bulk_upsert` step fall back to the hardcoded upsert so existing behavior is preserved.
@@ -145,67 +162,3 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
-## [2026-05-31] claude-sonnet-4-6 — synthetic DOI generation for ATRD/ATM Seminar papers
-
-**Action:** ATRD Symposium and ATM Seminar papers are not registered with DOI.org. Added a `generate_doi` strategy step type that generates a deterministic synthetic DOI (`10.0000/<namespace>.<year>.<title_slug>`) for any paper missing one, and sets `doi_synthetic: true`. Added `doi_synthetic: bool` field to `Paper` and `PaperUpdate` models. Wired `generate_doi` step execution into `_search_papers_for_venue` so it runs after the fetch step for any strategy that includes it. Updated `_to_paper_model` to pass through `doi_synthetic` and also map ATRD-specific response fields (`full_paper_url` → `pdf_link`, `section` → tag). Added `generate_doi` step to `strategies/atrd.json` and created `strategies/atm_seminar.json` (extends `atrd`, no step overrides needed).
-
-**Files changed:**
-- `services/models.py` — added `doi_synthetic: bool = False` to `Paper`; `doi_synthetic: Optional[bool]` to `PaperUpdate`
-- `api/routes/venues.py` — added `_make_title_slug`, `_apply_generate_doi` helpers; wired `generate_doi` step in `_search_papers_for_venue`; updated `_to_paper_model` for `doi_synthetic`, `full_paper_url`, `section`
-- `strategies/atrd.json` — added `generate_doi` step after `fetch_papers`
-- `strategies/atm_seminar.json` — new strategy extending `atrd` with no overrides
-- `VERSION.md` — bumped to `paper-library-v0.1.70`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Synthetic DOI format `10.0000/<slug>.<year>.<title_slug>` is deterministic so re-running a download is idempotent — same paper always gets same DOI. `section` from ATRD response is appended as a tag so topic classification is preserved. `atm_seminar` extends `atrd` rather than duplicating steps — any future change to ATRD fetch/DOI logic propagates automatically.
-
-**Open items:** After deploying, re-save the ATM Seminar venue in the UI to auto-select `strategy: "atm_seminar"`, then trigger downloads.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — recompute slug from short_name on venue update and redirect
-
-**Action:** `update_venue` now recomputes the slug from the incoming `short_name` on every save. If the new slug differs from the URL slug, the old file is deleted and the new file is written with the new slug, then the response includes `slug: <new_slug>`. The venue edit page (`venue.html`) detects a slug change in the response and redirects to `/venues/<new_slug>` using `window.location.replace` so the back button does not return to the stale URL. A 409 is returned if the new slug would collide with an existing venue. Also fixed a stale `'_default'` fallback in `getForm()` in `venue.html`.
-
-**Files changed:**
-- `api/routes/venues.py` — `update_venue` recomputes slug, renames file, raises 409 on collision
-- `api/static/venue.html` — `doSave()` redirects on slug change; `getForm()` strategy fallback `'_default'` → `''`
-- `VERSION.md` — bumped to `paper-library-v0.1.69`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Used `window.location.replace` (not `assign`) so the stale `/venues/<old-slug>` URL is removed from browser history — pressing back goes to the venues list rather than a 404. `_default_strategy_for_slug` is called with the new slug so auto-selection also reflects the rename.
-
-**Open items:** The existing ATRD Symposium venue on the deployed server (`us_europe_atm_r_d_seminar`) needs to be re-saved after the update is deployed — saving will rename it to `atrd_symposium` and auto-select `strategy: "atrd"`.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — remove _default strategy fallback; blank means no strategy
-
-**Action:** Removed all hardcoded `"_default"` fallbacks throughout the codebase. `VenueRecord.strategy` now defaults to `""`. `_default_strategy_for_slug` returns `""` when no matching file exists. `_build_searcher_request` treats a blank strategy as "no strategy" — skips resolution and falls through to plain POST on `settings.searcher_api_base_url`. `list_venues` returns `""` for venues without a strategy field. Auto-select condition in `create_venue`/`update_venue` now triggers on blank rather than `"_default"`.
-
-**Files changed:**
-- `services/models.py` — `strategy` field default `"_default"` → `""`
-- `api/routes/venues.py` — `_default_strategy_for_slug` returns `""`; `_build_searcher_request` blank-strategy path; `list_venues` fallback `""`; create/update condition uses blank check
-- `VERSION.md` — bumped to `paper-library-v0.1.68`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Blank strategy is now the canonical "no strategy configured" state. Venues that still have `"_default"` in their stored JSON will read that string back on `GET` — they will attempt to resolve a `_default` strategy file, which does exist, so they continue to work. To fully clean those up, re-save via the venue edit page.
-
-**Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — auto-select strategy by venue slug on create/update
-
-**Action:** Added `_default_strategy_for_slug(slug)` helper that returns the slug if a matching `strategies/<slug>.json` exists, otherwise `"_default"`. Applied in both `create_venue` and `update_venue`: when the strategy field is `"_default"` (i.e. not explicitly overridden by the caller), it is replaced with the slug-matched strategy. This means creating or saving an ATRD venue automatically sets `strategy: "atrd"` without any manual UI step.
-
-**Files changed:**
-- `api/routes/venues.py` — added `_default_strategy_for_slug`; applied in `create_venue` and `update_venue`
-- `VERSION.md` — bumped to `paper-library-v0.1.67`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** Only applies when strategy is still `"_default"` — an explicit user selection is never overwritten. Works at both create and update time, so re-saving an existing venue with `_default` also upgrades it to the slug-matched strategy.
-
-**Open items:** Existing ATRD venue on the deployed server will not be auto-updated until it is re-saved via the venue edit page (which will trigger `update_venue` and apply the auto-select).
-
----
