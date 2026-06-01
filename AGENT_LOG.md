@@ -6,6 +6,36 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] claude-sonnet-4-6 — re-downloads overwrite existing PDF rather than creating duplicates
+
+**Action:** On re-download, `_reserve_pdf_dest_path` was treating an already-existing file as a collision and creating a sibling file (`evaluation_utm_conops_drone-li-atrd-2025-<identity>.pdf`). The primary name check previously skipped names where the file already existed on disk. Removed the `not (dest_dir / candidate).exists()` guard from the primary name check so the first download of a paper always gets the primary name and any re-download overwrites it in place. The collision-with-suffix logic is still applied for true within-batch duplicates (two different papers generating the same filename).
+
+**Files changed:**
+- `api/routes/venues.py` — `_reserve_pdf_dest_path` primary name check no longer skips existing files
+- `VERSION.md` — bumped to `paper-library-v0.2.4`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** Overwrite-on-re-download is the correct behaviour — the content is the same PDF, just re-fetched. Within-batch collisions (two distinct papers with identical LLM-generated names) still get the identity suffix as before.
+
+**Open items:** None.
+
+---
+
+## [2026-06-01] claude-sonnet-4-6 — fix concurrent Download All overwriting each other's stats
+
+**Action:** When multiple years downloaded simultaneously via Download All, each `_run_download_task` loaded `doc` at startup and held a stale copy. When a task finished and called `_persist_download_stats`, it wrote `doc["paper_downloads"]` built from its own stale copy — silently overwriting stats already written by other tasks that finished first. Fixed by re-reading the venue JSON from disk inside `_persist_download_stats` before merging and writing, so each task always sees the latest combined state.
+
+**Files changed:**
+- `api/routes/venues.py` — `_persist_download_stats` re-reads venue doc from disk before writing stats
+- `VERSION.md` — bumped to `paper-library-v0.2.3`
+- `AGENT_LOG.md` — prepended this entry
+
+**Decisions:** The disk-read is cheap and happens only once at task completion. Concurrent writes to the same JSON file are serialised by the OS at the file level; the brief read-modify-write window is acceptable for this use case (non-transactional file store). A file lock would be more robust but is unnecessary for the observed scale.
+
+**Open items:** None.
+
+---
+
 ## [2026-06-01] codex-gpt-5 — harden download retry config parsing and recover UI after polling failures
 
 **Action:** Reviewed the most recent Claude changes (`v0.1.99`–`v0.2.1`) with focus on Download All polling and transient PDF retry behavior. Applied two follow-up fixes: (1) hardened `download_pdf` retry settings by coercing invalid/negative `retries` and `backoff` values to safe defaults, and fixed retry attempt labels to reflect actual attempt counts; (2) improved venue-page polling failure handling so a polling error no longer leaves rows stuck in running state, and Download All now reports how many starts actually succeeded.

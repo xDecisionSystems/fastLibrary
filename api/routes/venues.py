@@ -721,7 +721,9 @@ def _reserve_pdf_dest_path(
     suffix = Path(safe_name).suffix or ".pdf"
 
     candidate = safe_name
-    if candidate not in reserved_names and not (dest_dir / candidate).exists():
+    # If the primary name already exists on disk (re-download), reuse it so
+    # we overwrite rather than accumulate duplicate files.
+    if candidate not in reserved_names:
         reserved_names.add(candidate)
         return dest_dir / candidate
 
@@ -1165,16 +1167,18 @@ def _persist_download_stats(
     slug: str, year: int, doc: dict, path: Path,
     attempted_at: str, downloaded: int, error: str,
 ) -> None:
-    stats = _normalize_download_stats(doc.get("paper_downloads", {}))
+    # Re-read from disk to pick up stats written by other concurrent tasks.
+    current_doc = _load_venue_doc(path) if path.exists() else doc
+    stats = _normalize_download_stats(current_doc.get("paper_downloads", {}))
     stats[str(year)] = {
         "downloaded_papers": downloaded,
         "last_attempted_at": attempted_at,
         "last_status": "cancelled" if error == "cancelled by user" else ("success" if not error else "error"),
         "last_error": error,
     }
-    doc["paper_downloads"] = stats
+    current_doc["paper_downloads"] = stats
     try:
-        path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        path.write_text(json.dumps(current_doc, indent=2), encoding="utf-8")
     except Exception:
         pass
 
