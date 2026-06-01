@@ -76,6 +76,8 @@ RAG System        ──GET  /papers?ingested=false──►  │
 | PATCH  | /papers/{doi:path}       | `PaperUpdate`              | Updated paper document or 404                 |
 | DELETE | /papers/{doi:path}       | —                          | `{"deleted": true}` or 404                    |
 
+Paper API routes are mounted at both `/papers` (legacy/default) and `/api/papers` (alias used by the browser UI).
+
 **GET /papers query parameters:**
 
 | Param      | Type    | Default | Description                                 |
@@ -257,5 +259,8 @@ Venue UI routes:
 | GET    | /addconf     | `addconf.html` (conference creation form) |
 | GET    | /addjournal  | `addjournal.html` (journal creation form) |
 | GET    | /tags        | `tags.html` (tag management page) |
+| GET    | /papers-ui   | `papers.html` (paper browser with filters/detail panel) |
+| GET    | /strategies  | `strategies.html` (strategy list/create page) |
+| GET    | /strategies/{slug} | `strategy.html` (strategy detail/edit page) |
 | GET    | /venues/{slug} | `venue.html` (venue detail/edit page; conference pages include embedded paper search/download section) |
 | GET    | /getpapers/{slug} | Legacy route; HTTP 301 redirect to `/venues/{slug}` |

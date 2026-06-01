@@ -6,6 +6,24 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 
 ---
 
+## [2026-06-01] codex-gpt-5 — restore papers API backward compatibility and isolate UI route
+
+**Action:** Reviewed the most recent Claude change that introduced `papers.html` and moved the papers API to `/api/papers`. Implemented a compatibility fix to preserve existing `/papers` API clients while keeping the new browser page. `api/main.py` now mounts the papers router at both `/papers` (legacy/default) and `/api/papers` (alias), and moves the HTML page route to `GET /papers-ui` to avoid path collisions. Updated all navigation links to point to `/papers-ui`, updated architecture docs with the dual-prefix API note and missing UI routes, and ran syntax checks.
+
+**Files changed:**
+- `api/main.py` — mounted papers router on `/papers` and `/api/papers`; moved page route `/papers` → `/papers-ui`
+- `api/static/conf.html`, `venues.html`, `journals.html`, `venue.html`, `addconf.html`, `addjournal.html`, `strategies.html`, `papers.html` — navigation links updated to `/papers-ui`
+- `ARCHITECTURE.md` — documented dual papers API prefixes and added missing UI routes
+- `VERSION.md` — bumped to `paper-library-v0.1.82`
+- `AGENT_LOG.md` — prepended this entry and archived entries beyond 10 most recent
+- `history/2026-05.md` — received archived AGENT_LOG entries
+
+**Decisions:** Kept `/api/papers` as a first-class alias so the new UI remains unchanged, while restoring `/papers` for backwards compatibility with existing API clients and scripts.
+
+**Open items:** Existing bookmarks to `/papers` (HTML page path from the Claude change) should switch to `/papers-ui`; `/papers` is now reserved for JSON API responses.
+
+---
+
 ## [2026-06-01] claude-sonnet-4-6 — add /papers page with search, filters, and detail panel
 
 **Action:** Created `api/static/papers.html` — a paginated, searchable list of all papers backed by `GET /api/papers`. Filters: title (full-text), year range, downloaded status, tags. Columns: Paper (title + authors + DOI), Tags, Year, Venue, Downloaded. Clicking a title opens a detail panel showing all fields including BibTeX with a copy button. Added `GET /papers` page route to `main.py`. Moved papers API prefix from `/papers` to `/api/papers` so the page URL `/papers` is unambiguous; updated `scripts/import_searcher.py` to use the new prefix. Added Papers nav link to all existing pages.
@@ -144,55 +162,6 @@ Archive to `history/YYYY-MM.md` when this file exceeds 200 lines (keep 10 most r
 **Decisions:** Conferences link to getpapers (the primary action for a conference) rather than the venue edit page, since the View button already covers that. Journals have no getpapers page so they link to the venue detail/edit page.
 
 **Open items:** None.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — add build_bibtex strategy step for @inproceedings generation
-
-**Action:** Added a `build_bibtex` strategy step type that assembles a complete `@inproceedings` BibTeX entry for each paper. Added `location` and `month` fields to `DownloadSource` so per-year venue city and month can be stored alongside the URL. Added `bibtex: str` field to `Paper` and `PaperUpdate`. Implemented `_build_bibtex_entry` and `_apply_build_bibtex` in venues.py — reads `location`/`month` from the matching `download_sources` entry, uses `venue_long` as `booktitle`, adds a `note` field when `doi_synthetic=true`. Wired into `_search_papers_for_venue` step loop. Added `build_bibtex` as the final step in `strategies/atrd.json`. `bibtex` passed through `_to_paper_model` and stored in MongoDB.
-
-**Files changed:**
-- `services/models.py` — `DownloadSource` gains `location` and `month`; `Paper`/`PaperUpdate` gain `bibtex`
-- `api/routes/venues.py` — `_build_bibtex_entry`, `_apply_build_bibtex` helpers; `build_bibtex` wired in step loop; `bibtex` in `_to_paper_model`
-- `strategies/atrd.json` — `build_bibtex` step added as final step
-- `VERSION.md` — bumped to `paper-library-v0.1.73`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** `build_bibtex` runs on both Search and Download (no `download_pdfs` gate needed — it's pure data assembly). Cite key is `<first_author_lastname><year>` (e.g. `li2025`). Fields are omitted when empty so partial data still produces valid BibTeX. `address` and `month` come from `download_sources[year].location` and `.month` — the ATRD 2025 entry on the server needs those fields populated (`Prague, Czech Republic` / `June`).
-
-**Open items:** The ATRD Symposium venue on the server needs its 2025 `download_sources` entry updated with `location: "Prague, Czech Republic"` and `month: "June"` to get fully populated BibTeX entries.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — add venue_long, is_best_paper, presentation_url to Paper model
-
-**Action:** Added three fields to `Paper` and `PaperUpdate` models to cover missing BibTeX and ATRD-specific data. `venue_long` stores the full proceedings/journal title (used as `booktitle` in BibTeX) populated from `venue_doc["long_name"]`. `is_best_paper` and `presentation_url` capture ATRD-specific metadata previously dropped in `_to_paper_model`. Updated `_to_paper_model` to map all three from the raw candidate and venue doc.
-
-**Files changed:**
-- `services/models.py` — added `venue_long`, `is_best_paper`, `presentation_url` to `Paper` and `PaperUpdate`
-- `api/routes/venues.py` — `_to_paper_model` maps `venue_long` from `venue_doc["long_name"]`, `is_best_paper` and `presentation_url` from raw candidate
-- `VERSION.md` — bumped to `paper-library-v0.1.72`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** `venue_long` falls back to `raw.get("venue_long")` first so it can be overridden by the searcher if it ever returns it, then `venue_doc["long_name"]`. For ATRD the long name is `"U.S./Europe Air Transportation Research and Development Seminar"` which is the correct BibTeX `booktitle`.
-
-**Open items:** `address` and `month` per symposium year are still not stored. These could be added to `DownloadSource` (alongside `name`/`url`/`notes`) to enable full BibTeX generation.
-
----
-
-## [2026-05-31] claude-sonnet-4-6 — wire download_pdf strategy step for ATRD PDF fetching
-
-**Action:** Added `download_pdf` step type execution. The searcher's `/download_atrd_paper` endpoint now returns raw PDF bytes (not a JSON path). Added `_call_pdf_download` (POST, expects `application/pdf` response) and `_apply_download_pdfs` (iterates candidates, saves each PDF to `pdf/<dest_subdir>/<title_slug>.pdf`, sets `pdf_path`). Wired into `_search_papers_for_venue` behind a `download_pdfs=True` flag so Search (preview) never triggers PDF downloads — only the full Download button does. Added `download_pdf` step to `strategies/atrd.json`. `atm_seminar` inherits it automatically.
-
-**Files changed:**
-- `api/routes/venues.py` — added `PDF_DIR` import; `_call_pdf_download`, `_apply_download_pdfs` helpers; `download_pdfs` flag on `_search_papers_for_venue`; `download_pdfs=True` in `download_papers_for_conference_year`
-- `strategies/atrd.json` — added `download_pdf` step before `generate_doi`
-- `VERSION.md` — bumped to `paper-library-v0.1.71`
-- `AGENT_LOG.md` — prepended this entry
-
-**Decisions:** PDFs saved to `pdf/<venue_slug>/<year>/<title_slug>.pdf` using existing `PDF_DIR`. Papers that already have `pdf_path` are skipped (idempotent). Download errors are stored in `pdf_error` on the candidate dict rather than aborting the whole batch. `download_pdf` runs before `generate_doi` in the step order so the PDF is fetched with the original paper record, and DOI is assigned after.
-
-**Open items:** `pdf_error` field on candidates is not persisted to MongoDB — errors are visible in the download response but not stored. A future improvement could log per-paper errors to the paper record.
 
 ---
 
